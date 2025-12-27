@@ -10,6 +10,7 @@ import DashboardPage from "./pages/DashboardPage";
 import AgendaPage from "./pages/AgendaPage";
 import ClientesPage from "./pages/ClientesPage";
 import ComandaPage from "./pages/ComandaPage";
+import ServicosPage from "./pages/ServicosPage";
 import RelatoriosPage from "./pages/RelatoriosPage";
 import MarketingPage from "./pages/MarketingPage";
 import AgentesPage from "./pages/AgentesPage";
@@ -45,6 +46,11 @@ const App = () => (
             <Route path="/comanda" element={
               <ProtectedRoute>
                 <ComandaPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/servicos" element={
+              <ProtectedRoute>
+                <ServicosPage />
               </ProtectedRoute>
             } />
             <Route path="/relatorios" element={
