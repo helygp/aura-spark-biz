@@ -14,6 +14,83 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointments: {
+        Row: {
+          business_id: string
+          client_id: string | null
+          created_at: string
+          date: string
+          end_time: string
+          id: string
+          notes: string | null
+          price: number
+          professional_id: string | null
+          service_id: string | null
+          start_time: string
+          status: Database["public"]["Enums"]["appointment_status"]
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          client_id?: string | null
+          created_at?: string
+          date: string
+          end_time: string
+          id?: string
+          notes?: string | null
+          price?: number
+          professional_id?: string | null
+          service_id?: string | null
+          start_time: string
+          status?: Database["public"]["Enums"]["appointment_status"]
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          client_id?: string | null
+          created_at?: string
+          date?: string
+          end_time?: string
+          id?: string
+          notes?: string | null
+          price?: number
+          professional_id?: string | null
+          service_id?: string | null
+          start_time?: string
+          status?: Database["public"]["Enums"]["appointment_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_members: {
         Row: {
           business_id: string
@@ -94,6 +171,47 @@ export type Database = {
           },
         ]
       }
+      clients: {
+        Row: {
+          business_id: string
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           business_id: string
@@ -134,6 +252,54 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      professionals: {
+        Row: {
+          business_id: string
+          color: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          business_id: string
+          color?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          business_id?: string
+          color?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professionals_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professionals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -253,6 +419,13 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "owner" | "professional"
+      appointment_status:
+        | "scheduled"
+        | "confirmed"
+        | "in_progress"
+        | "completed"
+        | "cancelled"
+        | "no_show"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -381,6 +554,14 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "owner", "professional"],
+      appointment_status: [
+        "scheduled",
+        "confirmed",
+        "in_progress",
+        "completed",
+        "cancelled",
+        "no_show",
+      ],
     },
   },
 } as const
