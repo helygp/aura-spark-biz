@@ -166,7 +166,9 @@ export default function DashboardPage() {
       <AppLayout title="Dashboard" subtitle={currentDateLabel}>
         <CreateBusinessDialog
           open
-          onSubmit={(data) => createBusiness.mutate(data)}
+          onSubmit={(data) =>
+            createBusiness.mutate({ name: data.name, phone: data.phone, address: data.address })
+          }
           isLoading={createBusiness.isPending}
         />
       </AppLayout>

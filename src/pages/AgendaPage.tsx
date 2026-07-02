@@ -133,7 +133,9 @@ export default function AgendaPage() {
       <AppLayout title="Agenda" subtitle="Gerencie seus agendamentos">
         <CreateBusinessDialog
           open
-          onSubmit={(data) => createBusiness.mutate(data)}
+          onSubmit={(data) =>
+            createBusiness.mutate({ name: data.name, phone: data.phone, address: data.address })
+          }
           isLoading={createBusiness.isPending}
         />
       </AppLayout>
