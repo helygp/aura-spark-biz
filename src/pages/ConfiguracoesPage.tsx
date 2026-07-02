@@ -131,6 +131,9 @@ export default function ConfiguracoesPage() {
             </CardContent>
           </Card>
 
+          {/* Business Hours */}
+          <BusinessHoursCard />
+
           {/* Team */}
           <Card variant="elevated">
             <CardHeader className="flex flex-row items-center justify-between">
