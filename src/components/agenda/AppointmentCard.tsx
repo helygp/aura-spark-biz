@@ -1,6 +1,6 @@
 import { Appointment, AppointmentStatus } from "@/hooks/useAppointments";
 import { cn } from "@/lib/utils";
-import { MoreHorizontal, Clock, User, Scissors } from "lucide-react";
+import { MoreHorizontal, Clock, User, Scissors, MessageSquare } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface AppointmentCardProps {
   appointment: Appointment;
@@ -34,6 +35,7 @@ export function AppointmentCard({
 }: AppointmentCardProps) {
   const status = statusConfig[appointment.status];
   const professionalColor = appointment.professional?.color || "#8B5CF6";
+  const isAi = appointment.source === "whatsapp";
 
   return (
     <div
@@ -51,6 +53,22 @@ export function AppointmentCard({
             <span className="font-medium">
               {appointment.start_time.slice(0, 5)} - {appointment.end_time.slice(0, 5)}
             </span>
+            {isAi && (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 rounded-full bg-primary/15 text-primary px-1.5 py-0.5 text-[10px] font-semibold"
+                    >
+                      <MessageSquare className="h-2.5 w-2.5" />
+                      IA
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Agendado pelo agente de IA no WhatsApp</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
           
           {appointment.client && (
