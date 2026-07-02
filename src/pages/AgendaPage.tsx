@@ -1,91 +1,149 @@
+import { useMemo, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  ChevronLeft, 
-  ChevronRight, 
+import { Badge } from "@/components/ui/badge";
+import {
+  ChevronLeft,
+  ChevronRight,
   Plus,
-  Clock,
-  User,
-  Scissors,
+  Filter,
+  Loader2,
   Calendar as CalendarIcon,
-  Filter
+  Sparkles,
 } from "lucide-react";
-import { useState } from "react";
+import { addDays, addWeeks, format, isSameDay, startOfWeek, subDays, subWeeks } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useBusiness } from "@/hooks/useBusiness";
+import { useProfessionals } from "@/hooks/useProfessionals";
+import { useBusinessHours } from "@/hooks/useBusinessHours";
+import {
+  Appointment,
+  AppointmentFormData,
+  useAppointments,
+  useAppointmentsRange,
+} from "@/hooks/useAppointments";
+import { AppointmentDialog } from "@/components/agenda/AppointmentDialog";
+import { CreateBusinessDialog } from "@/components/onboarding/CreateBusinessDialog";
+import { AppointmentCard } from "@/components/agenda/AppointmentCard";
+import {
+  buildDaySlots,
+  DEFAULT_SLOT_MINUTES,
+  getHourForDate,
+  timeToMinutes,
+} from "@/lib/schedule";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-// Mock data
-const professionals = [
-  { id: 1, name: "Carlos", color: "bg-primary" },
-  { id: 2, name: "Ana", color: "bg-success" },
-  { id: 3, name: "Pedro", color: "bg-info" },
-];
-
-const timeSlots = [
-  "08:00", "09:00", "10:00", "11:00", "12:00", 
-  "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"
-];
-
-const appointments: Record<string, Array<{
-  id: number;
-  time: string;
-  duration: number;
-  client: string;
-  service: string;
-  professional: number;
-  status: string;
-}>> = {
-  "2024-12-26": [
-    { id: 1, time: "09:00", duration: 60, client: "João Silva", service: "Corte + Barba", professional: 1, status: "confirmed" },
-    { id: 2, time: "10:00", duration: 45, client: "Pedro Santos", service: "Corte Degradê", professional: 1, status: "confirmed" },
-    { id: 3, time: "09:30", duration: 90, client: "Maria Lima", service: "Coloração", professional: 2, status: "pending" },
-    { id: 4, time: "14:00", duration: 30, client: "Lucas Oliveira", service: "Barba", professional: 1, status: "confirmed" },
-    { id: 5, time: "11:00", duration: 60, client: "Fernanda Costa", service: "Corte Feminino", professional: 2, status: "confirmed" },
-    { id: 6, time: "15:00", duration: 45, client: "Bruno Almeida", service: "Corte", professional: 3, status: "confirmed" },
-  ],
-};
-
-const weekDays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const SLOT_HEIGHT = 56; // px per 30-min slot
+const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 export default function AgendaPage() {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [view, setView] = useState<"day" | "week">("day");
-  const [selectedProfessional, setSelectedProfessional] = useState<number | null>(null);
+  const [selectedProfessional, setSelectedProfessional] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Appointment | null>(null);
+  const [defaultTime, setDefaultTime] = useState<string | undefined>(undefined);
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("pt-BR", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    });
-  };
+  const { business, isLoading: businessLoading, createBusiness } = useBusiness();
+  const { professionals } = useProfessionals();
+  const { hours: businessHours } = useBusinessHours();
 
-  const getWeekDates = () => {
-    const startOfWeek = new Date(currentDate);
-    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
-    
-    return Array.from({ length: 7 }, (_, i) => {
-      const date = new Date(startOfWeek);
-      date.setDate(startOfWeek.getDate() + i);
-      return date;
-    });
-  };
+  const {
+    appointments: dayAppointments,
+    isLoading: dayLoading,
+    createAppointment,
+    updateAppointment,
+    updateAppointmentStatus,
+    deleteAppointment,
+  } = useAppointments(view === "day" ? currentDate : undefined);
 
-  const navigateDate = (direction: "prev" | "next") => {
-    const newDate = new Date(currentDate);
+  const weekStart = useMemo(() => startOfWeek(currentDate, { weekStartsOn: 0 }), [currentDate]);
+  const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
+  const { appointments: weekAppointments, isLoading: weekLoading } = useAppointmentsRange(
+    view === "week" ? weekStart : undefined,
+    view === "week" ? weekEnd : undefined,
+  );
+
+  const hourForDay = useMemo(
+    () => getHourForDate(businessHours, currentDate),
+    [businessHours, currentDate],
+  );
+  const daySlots = useMemo(() => buildDaySlots(hourForDay), [hourForDay]);
+
+  const filteredDayApts = useMemo(() => {
+    if (!selectedProfessional) return dayAppointments;
+    return dayAppointments.filter((a) => a.professional_id === selectedProfessional);
+  }, [dayAppointments, selectedProfessional]);
+
+  const filteredWeekApts = useMemo(() => {
+    if (!selectedProfessional) return weekAppointments;
+    return weekAppointments.filter((a) => a.professional_id === selectedProfessional);
+  }, [weekAppointments, selectedProfessional]);
+
+  const navigate = (dir: "prev" | "next") => {
     if (view === "day") {
-      newDate.setDate(currentDate.getDate() + (direction === "next" ? 1 : -1));
+      setCurrentDate(dir === "next" ? addDays(currentDate, 1) : subDays(currentDate, 1));
     } else {
-      newDate.setDate(currentDate.getDate() + (direction === "next" ? 7 : -7));
+      setCurrentDate(dir === "next" ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1));
     }
-    setCurrentDate(newDate);
   };
 
-  const dayAppointments = appointments["2024-12-26"] || [];
-  const filteredAppointments = selectedProfessional 
-    ? dayAppointments.filter(a => a.professional === selectedProfessional)
-    : dayAppointments;
+  const openCreate = (time?: string) => {
+    setEditing(null);
+    setDefaultTime(time);
+    setDialogOpen(true);
+  };
+
+  const openEdit = (apt: Appointment) => {
+    setEditing(apt);
+    setDefaultTime(undefined);
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = async (data: AppointmentFormData) => {
+    if (editing) {
+      await updateAppointment.mutateAsync({ id: editing.id, ...data });
+    } else {
+      await createAppointment.mutateAsync(data);
+    }
+    setDialogOpen(false);
+    setEditing(null);
+  };
+
+  // Onboarding block
+  if (businessLoading) {
+    return (
+      <AppLayout title="Agenda" subtitle="Gerencie seus agendamentos">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!business) {
+    return (
+      <AppLayout title="Agenda" subtitle="Gerencie seus agendamentos">
+        <CreateBusinessDialog
+          open
+          onSubmit={(data) =>
+            createBusiness.mutate({ name: data.name, phone: data.phone, address: data.address })
+          }
+          isLoading={createBusiness.isPending}
+        />
+      </AppLayout>
+    );
+  }
+
+  const dayOriginMin = hourForDay?.is_open ? timeToMinutes(hourForDay.open_time) : 0;
+  const dayHeight = daySlots.length * SLOT_HEIGHT;
 
   return (
     <AppLayout title="Agenda" subtitle="Gerencie seus agendamentos">
@@ -93,14 +151,19 @@ export default function AgendaPage() {
         {/* Controls */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon-sm" onClick={() => navigateDate("prev")}>
+            <Button variant="outline" size="icon-sm" onClick={() => navigate("prev")}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="icon-sm" onClick={() => navigateDate("next")}>
+            <Button variant="outline" size="icon-sm" onClick={() => navigate("next")}>
               <ChevronRight className="w-4 h-4" />
             </Button>
+            <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())}>
+              Hoje
+            </Button>
             <h2 className="text-lg font-semibold capitalize ml-2">
-              {formatDate(currentDate)}
+              {view === "day"
+                ? format(currentDate, "EEEE, d 'de' MMMM", { locale: ptBR })
+                : `${format(weekStart, "d 'de' MMM", { locale: ptBR })} — ${format(weekEnd, "d 'de' MMM", { locale: ptBR })}`}
             </h2>
           </div>
 
@@ -109,7 +172,9 @@ export default function AgendaPage() {
               <button
                 className={cn(
                   "px-3 py-1.5 text-sm font-medium transition-colors",
-                  view === "day" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"
+                  view === "day"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setView("day")}
               >
@@ -118,14 +183,16 @@ export default function AgendaPage() {
               <button
                 className={cn(
                   "px-3 py-1.5 text-sm font-medium transition-colors",
-                  view === "week" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"
+                  view === "week"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setView("week")}
               >
                 Semana
               </button>
             </div>
-            <Button variant="gradient">
+            <Button variant="gradient" onClick={() => openCreate()}>
               <Plus className="w-4 h-4 mr-2" />
               Novo Agendamento
             </Button>
@@ -135,176 +202,260 @@ export default function AgendaPage() {
         {/* Professional Filter */}
         <Card variant="elevated">
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <Filter className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Profissional:</span>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button
                   className={cn(
                     "px-3 py-1 rounded-full text-sm font-medium transition-all",
-                    selectedProfessional === null 
-                      ? "bg-primary text-primary-foreground" 
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    selectedProfessional === null
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80",
                   )}
                   onClick={() => setSelectedProfessional(null)}
                 >
                   Todos
                 </button>
-                {professionals.map((prof) => (
-                  <button
-                    key={prof.id}
-                    className={cn(
-                      "px-3 py-1 rounded-full text-sm font-medium transition-all flex items-center gap-2",
-                      selectedProfessional === prof.id 
-                        ? "bg-primary text-primary-foreground" 
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
-                    )}
-                    onClick={() => setSelectedProfessional(prof.id)}
-                  >
-                    <span className={cn("w-2 h-2 rounded-full", prof.color)} />
-                    {prof.name}
-                  </button>
-                ))}
+                {professionals
+                  .filter((p) => p.is_active)
+                  .map((prof) => (
+                    <button
+                      key={prof.id}
+                      className={cn(
+                        "px-3 py-1 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+                        selectedProfessional === prof.id
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80",
+                      )}
+                      onClick={() => setSelectedProfessional(prof.id)}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: prof.color }}
+                      />
+                      {prof.name}
+                    </button>
+                  ))}
+                {professionals.length === 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    Nenhum profissional cadastrado ainda.
+                  </span>
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Calendar Grid */}
-        {view === "day" ? (
+        {/* Day View */}
+        {view === "day" && (
           <Card variant="elevated">
             <CardContent className="p-0">
-              <div className="grid grid-cols-[80px_1fr] divide-x divide-border">
-                {/* Time Column */}
-                <div className="divide-y divide-border">
-                  {timeSlots.map((time) => (
-                    <div key={time} className="h-16 flex items-start justify-center pt-2">
-                      <span className="text-xs text-muted-foreground font-medium">{time}</span>
-                    </div>
-                  ))}
+              {dayLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
-
-                {/* Appointments */}
-                <div className="relative">
-                  <div className="divide-y divide-border">
-                    {timeSlots.map((time) => (
-                      <div 
-                        key={time} 
-                        className="h-16 hover:bg-muted/50 transition-colors cursor-pointer group"
+              ) : !hourForDay?.is_open ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <CalendarIcon className="w-10 h-10 text-muted-foreground mb-3" />
+                  <p className="text-foreground font-medium">Estabelecimento fechado nesse dia</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Ajuste em Configurações → Horário de Funcionamento.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-[80px_1fr]">
+                  {/* Time labels */}
+                  <div className="border-r border-border">
+                    {daySlots.map((time) => (
+                      <div
+                        key={time}
+                        className="flex items-start justify-center pt-1 text-xs text-muted-foreground font-medium"
+                        style={{ height: SLOT_HEIGHT }}
                       >
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute left-2 top-1/2 -translate-y-1/2">
-                          <Plus className="w-4 h-4 text-muted-foreground" />
-                        </div>
+                        {time}
                       </div>
                     ))}
                   </div>
 
-                  {/* Appointment Cards */}
-                  {filteredAppointments.map((appointment) => {
-                    const startHour = parseInt(appointment.time.split(":")[0]);
-                    const startMinute = parseInt(appointment.time.split(":")[1]);
-                    const topOffset = (startHour - 8) * 64 + (startMinute / 60) * 64;
-                    const height = (appointment.duration / 60) * 64;
-                    const prof = professionals.find(p => p.id === appointment.professional);
-
-                    return (
+                  {/* Slots + appointments layer */}
+                  <div className="relative" style={{ height: dayHeight }}>
+                    {daySlots.map((time, idx) => (
                       <div
-                        key={appointment.id}
+                        key={time}
+                        onClick={() => openCreate(time)}
                         className={cn(
-                          "absolute left-2 right-2 rounded-lg p-2 cursor-pointer transition-all hover:shadow-medium animate-scale-in",
-                          appointment.status === "confirmed" ? "bg-primary/10 border-l-4 border-primary" :
-                          appointment.status === "pending" ? "bg-warning/10 border-l-4 border-warning" :
-                          "bg-muted border-l-4 border-muted-foreground"
+                          "absolute left-0 right-0 border-t border-border hover:bg-muted/40 cursor-pointer transition-colors",
+                          idx === 0 && "border-t-0",
                         )}
-                        style={{ 
-                          top: `${topOffset}px`, 
-                          height: `${Math.max(height - 4, 30)}px` 
-                        }}
-                      >
-                        <div className="flex items-start justify-between h-full">
-                          <div className="overflow-hidden">
-                            <p className="text-sm font-medium text-foreground truncate">{appointment.client}</p>
-                            <p className="text-xs text-muted-foreground truncate">{appointment.service}</p>
-                          </div>
-                          <Badge variant={appointment.status === "confirmed" ? "success" : "warning"} className="text-[10px] px-1.5">
-                            {prof?.name}
-                          </Badge>
+                        style={{ top: idx * SLOT_HEIGHT, height: SLOT_HEIGHT }}
+                      />
+                    ))}
+
+                    {filteredDayApts.map((apt) => {
+                      const startMin = timeToMinutes(apt.start_time);
+                      const endMin = timeToMinutes(apt.end_time);
+                      const top =
+                        ((startMin - dayOriginMin) / DEFAULT_SLOT_MINUTES) * SLOT_HEIGHT;
+                      const height = Math.max(
+                        ((endMin - startMin) / DEFAULT_SLOT_MINUTES) * SLOT_HEIGHT - 4,
+                        32,
+                      );
+                      return (
+                        <div
+                          key={apt.id}
+                          className="absolute left-2 right-2 z-10"
+                          style={{ top, height }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <AppointmentCard
+                            appointment={apt}
+                            onEdit={() => openEdit(apt)}
+                            onStatusChange={(status) =>
+                              updateAppointmentStatus.mutate({ id: apt.id, status })
+                            }
+                            onDelete={() => deleteAppointment.mutate(apt.id)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Week View */}
+        {view === "week" && (
+          <Card variant="elevated">
+            <CardContent className="p-0">
+              {weekLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-7 divide-x divide-border">
+                  {Array.from({ length: 7 }).map((_, i) => {
+                    const date = addDays(weekStart, i);
+                    const isToday = isSameDay(date, new Date());
+                    const dateStr = format(date, "yyyy-MM-dd");
+                    const dayApts = filteredWeekApts.filter((a) => a.date === dateStr);
+                    return (
+                      <div key={i} className="min-h-[360px]">
+                        <button
+                          onClick={() => {
+                            setCurrentDate(date);
+                            setView("day");
+                          }}
+                          className={cn(
+                            "w-full flex flex-col items-center justify-center py-3 border-b border-border transition-colors hover:bg-muted/40",
+                            isToday && "bg-primary/5",
+                          )}
+                        >
+                          <span className="text-xs text-muted-foreground uppercase">
+                            {WEEKDAY_LABELS[date.getDay()]}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-lg font-semibold",
+                              isToday ? "text-primary" : "text-foreground",
+                            )}
+                          >
+                            {format(date, "d")}
+                          </span>
+                        </button>
+                        <div className="p-2 space-y-2">
+                          {dayApts.length === 0 ? (
+                            <button
+                              onClick={() => {
+                                setCurrentDate(date);
+                                openCreate();
+                              }}
+                              className="w-full text-xs text-muted-foreground py-6 border border-dashed border-border rounded-md hover:bg-muted/40 transition-colors"
+                            >
+                              + agendar
+                            </button>
+                          ) : (
+                            dayApts.map((apt) => (
+                              <button
+                                key={apt.id}
+                                onClick={() => openEdit(apt)}
+                                className="w-full text-left rounded-md border-l-4 bg-card px-2 py-1.5 hover:bg-muted/40 transition-colors"
+                                style={{
+                                  borderLeftColor: apt.professional?.color || "#8B5CF6",
+                                }}
+                              >
+                                <div className="flex items-center gap-1.5 text-xs font-semibold">
+                                  {apt.start_time.slice(0, 5)}
+                                  {apt.source === "whatsapp" && (
+                                    <TooltipProvider delayDuration={200}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/15 text-primary px-1 text-[9px]">
+                                            <Sparkles className="h-2.5 w-2.5" />
+                                            IA
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          Agendado pelo agente de IA no WhatsApp
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                </div>
+                                <div className="text-xs truncate text-foreground">
+                                  {apt.client?.name || "Sem cliente"}
+                                </div>
+                                <div className="text-[10px] truncate text-muted-foreground">
+                                  {apt.service?.name || "—"}
+                                </div>
+                              </button>
+                            ))
+                          )}
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card variant="elevated">
-            <CardContent className="p-0">
-              <div className="grid grid-cols-8 divide-x divide-border">
-                {/* Time Column */}
-                <div className="divide-y divide-border">
-                  <div className="h-12 border-b border-border" />
-                  {timeSlots.slice(0, 8).map((time) => (
-                    <div key={time} className="h-14 flex items-start justify-center pt-2">
-                      <span className="text-xs text-muted-foreground font-medium">{time}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Days */}
-                {getWeekDates().map((date, index) => {
-                  const isToday = date.toDateString() === new Date().toDateString();
-                  return (
-                    <div key={index} className="divide-y divide-border">
-                      <div className={cn(
-                        "h-12 flex flex-col items-center justify-center border-b border-border",
-                        isToday && "bg-primary/5"
-                      )}>
-                        <span className="text-xs text-muted-foreground">{weekDays[date.getDay()]}</span>
-                        <span className={cn(
-                          "text-sm font-semibold",
-                          isToday ? "text-primary" : "text-foreground"
-                        )}>
-                          {date.getDate()}
-                        </span>
-                      </div>
-                      {timeSlots.slice(0, 8).map((time) => (
-                        <div 
-                          key={time} 
-                          className={cn(
-                            "h-14 hover:bg-muted/50 transition-colors cursor-pointer",
-                            isToday && "bg-primary/5"
-                          )}
-                        />
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
+              )}
             </CardContent>
           </Card>
         )}
 
         {/* Legend */}
-        <div className="flex items-center gap-6 text-sm">
+        <div className="flex items-center gap-6 text-sm flex-wrap">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-primary" />
-            <span className="text-muted-foreground">Confirmado</span>
+            <Badge variant="info" className="text-[10px]">Agendado</Badge>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-warning" />
-            <span className="text-muted-foreground">Pendente</span>
+            <Badge variant="success" className="text-[10px]">Confirmado</Badge>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-destructive" />
-            <span className="text-muted-foreground">Cancelado</span>
+            <Badge variant="warning" className="text-[10px]">Em atendimento</Badge>
           </div>
           <div className="flex items-center gap-2">
-            <CalendarIcon className="w-4 h-4 text-info" />
-            <span className="text-muted-foreground">Google Agenda</span>
+            <Badge variant="destructive" className="text-[10px]">Cancelado</Badge>
+          </div>
+          <div className="flex items-center gap-2 text-primary">
+            <Sparkles className="w-4 h-4" />
+            <span className="text-muted-foreground">Agendado pelo agente de IA</span>
           </div>
         </div>
       </div>
+
+      <AppointmentDialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditing(null);
+        }}
+        appointment={editing}
+        defaultDate={currentDate}
+        defaultTime={defaultTime}
+        onSubmit={handleSubmit}
+        isLoading={createAppointment.isPending || updateAppointment.isPending}
+      />
     </AppLayout>
   );
 }

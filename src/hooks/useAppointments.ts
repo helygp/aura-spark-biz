@@ -6,6 +6,8 @@ import { format } from "date-fns";
 
 export type AppointmentStatus = 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
 
+export type AppointmentSource = 'manual' | 'web' | 'whatsapp';
+
 export interface Appointment {
   id: string;
   business_id: string;
@@ -18,6 +20,7 @@ export interface Appointment {
   status: AppointmentStatus;
   notes: string | null;
   price: number;
+  source: AppointmentSource;
   created_at: string;
   updated_at: string;
   // Joined data
@@ -36,6 +39,7 @@ export interface AppointmentFormData {
   status?: AppointmentStatus;
   notes?: string;
   price?: number;
+  source?: AppointmentSource;
 }
 
 export function useAppointments(selectedDate?: Date) {
@@ -85,6 +89,7 @@ export function useAppointments(selectedDate?: Date) {
           status: formData.status || "scheduled",
           notes: formData.notes || null,
           price: formData.price || 0,
+          source: formData.source || "manual",
         })
         .select()
         .single();
@@ -172,4 +177,37 @@ export function useAppointments(selectedDate?: Date) {
     updateAppointmentStatus,
     deleteAppointment,
   };
+}
+
+/** Fetch appointments in a date range (inclusive). */
+export function useAppointmentsRange(from?: Date, to?: Date) {
+  const { business } = useBusiness();
+
+  const fromStr = from ? format(from, "yyyy-MM-dd") : null;
+  const toStr = to ? format(to, "yyyy-MM-dd") : null;
+
+  const { data: appointments = [], isLoading } = useQuery({
+    queryKey: ["appointments", "range", business?.id, fromStr, toStr],
+    queryFn: async () => {
+      if (!business?.id || !fromStr || !toStr) return [];
+      const { data, error } = await supabase
+        .from("appointments")
+        .select(`
+          *,
+          client:clients(id, name, phone),
+          service:services(id, name, duration_minutes),
+          professional:professionals(id, name, color)
+        `)
+        .eq("business_id", business.id)
+        .gte("date", fromStr)
+        .lte("date", toStr)
+        .order("date")
+        .order("start_time");
+      if (error) throw error;
+      return data as Appointment[];
+    },
+    enabled: !!business?.id && !!fromStr && !!toStr,
+  });
+
+  return { appointments, isLoading };
 }
