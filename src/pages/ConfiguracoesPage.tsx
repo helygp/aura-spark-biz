@@ -16,12 +16,15 @@ import {
   ChevronRight,
   Check,
   Plus,
-  ExternalLink
+  ExternalLink,
+  Clock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BusinessHoursCard } from "@/components/settings/BusinessHoursCard";
 
 const menuItems = [
   { icon: Building2, label: "Dados do Negócio", description: "Nome, endereço, contato" },
+  { icon: Clock, label: "Horário de Funcionamento", description: "Dias e horários abertos" },
   { icon: Scissors, label: "Serviços e Preços", description: "Catálogo de serviços" },
   { icon: Users, label: "Equipe", description: "Profissionais e permissões" },
   { icon: Link2, label: "Integrações", description: "Google, WhatsApp, APIs" },
