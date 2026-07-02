@@ -26,6 +26,7 @@ export type Database = {
           price: number
           professional_id: string | null
           service_id: string | null
+          source: string
           start_time: string
           status: Database["public"]["Enums"]["appointment_status"]
           updated_at: string
@@ -41,6 +42,7 @@ export type Database = {
           price?: number
           professional_id?: string | null
           service_id?: string | null
+          source?: string
           start_time: string
           status?: Database["public"]["Enums"]["appointment_status"]
           updated_at?: string
@@ -56,6 +58,7 @@ export type Database = {
           price?: number
           professional_id?: string | null
           service_id?: string | null
+          source?: string
           start_time?: string
           status?: Database["public"]["Enums"]["appointment_status"]
           updated_at?: string
@@ -87,6 +90,47 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_hours: {
+        Row: {
+          business_id: string
+          close_time: string
+          created_at: string
+          id: string
+          is_open: boolean
+          open_time: string
+          updated_at: string
+          weekday: number
+        }
+        Insert: {
+          business_id: string
+          close_time?: string
+          created_at?: string
+          id?: string
+          is_open?: boolean
+          open_time?: string
+          updated_at?: string
+          weekday: number
+        }
+        Update: {
+          business_id?: string
+          close_time?: string
+          created_at?: string
+          id?: string
+          is_open?: boolean
+          open_time?: string
+          updated_at?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_hours_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
