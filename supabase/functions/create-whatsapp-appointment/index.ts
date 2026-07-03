@@ -165,6 +165,30 @@ Deno.serve(async (req) => {
     );
   }
 
+  // 3b. Time-off (professional unavailability) check
+  let timeOffQuery = admin
+    .from("professional_time_off")
+    .select("id, start_time, end_time, professional_id, reason")
+    .eq("business_id", business_id)
+    .eq("date", date)
+    .lt("start_time", end_time)
+    .gt("end_time", start_time);
+  if (professional_id) {
+    timeOffQuery = timeOffQuery.eq("professional_id", professional_id);
+  }
+  const { data: timeOffs, error: timeOffErr } = await timeOffQuery;
+  if (timeOffErr) return json({ error: "db_error", message: timeOffErr.message }, 500);
+  if (timeOffs && timeOffs.length > 0) {
+    console.log("[wa-appt] blocked_by_time_off", { count: timeOffs.length });
+    return json(
+      {
+        error: "professional_unavailable",
+        message: "O profissional está indisponível nesse horário.",
+      },
+      409,
+    );
+  }
+
   // 4. Insert appointment
   const { data: appointment, error: apptErr } = await admin
     .from("appointments")
