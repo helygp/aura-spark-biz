@@ -23,7 +23,6 @@ const groups: { title: string; items: Item[] }[] = [
       { icon: LayoutDashboard, label: "Painel", path: "/dashboard" },
       { icon: Calendar, label: "Agenda", path: "/agenda" },
       { icon: Users, label: "Clientes", path: "/clientes" },
-      { icon: ShoppingCart, label: "Comanda", path: "/comanda" },
       { icon: Scissors, label: "Serviços", path: "/servicos" },
       { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
     ],
