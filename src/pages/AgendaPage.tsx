@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import {
   Loader2,
   Calendar as CalendarIcon,
   Sparkles,
+  Ban,
 } from "lucide-react";
 import { addDays, addWeeks, format, isSameDay, startOfWeek, subDays, subWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -26,10 +27,14 @@ import {
 import { AppointmentDialog } from "@/components/agenda/AppointmentDialog";
 import { CreateBusinessDialog } from "@/components/onboarding/CreateBusinessDialog";
 import { AppointmentCard } from "@/components/agenda/AppointmentCard";
+import { BlockTimeDialog } from "@/components/agenda/BlockTimeDialog";
+import { TimeOffBlock } from "@/components/agenda/TimeOffBlock";
+import { useTimeOff, TimeOffFormData } from "@/hooks/useTimeOff";
 import {
   buildDaySlots,
   DEFAULT_SLOT_MINUTES,
   getHourForDate,
+  minutesToTime,
   timeToMinutes,
 } from "@/lib/schedule";
 import {
@@ -50,6 +55,9 @@ export default function AgendaPage() {
   const [editing, setEditing] = useState<Appointment | null>(null);
   const [defaultTime, setDefaultTime] = useState<string | undefined>(undefined);
 
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [blockDefaults, setBlockDefaults] = useState<{ start?: string; end?: string }>({});
+
   const { business, isLoading: businessLoading, createBusiness } = useBusiness();
   const { professionals } = useProfessionals();
   const { hours: businessHours } = useBusinessHours();
@@ -62,6 +70,15 @@ export default function AgendaPage() {
     updateAppointmentStatus,
     deleteAppointment,
   } = useAppointments(view === "day" ? currentDate : undefined);
+
+  const { timeOffs, createTimeOff, deleteTimeOff } = useTimeOff(
+    view === "day" ? currentDate : undefined,
+  );
+
+  const filteredDayTimeOffs = useMemo(() => {
+    if (!selectedProfessional) return timeOffs;
+    return timeOffs.filter((t) => t.professional_id === selectedProfessional);
+  }, [timeOffs, selectedProfessional]);
 
   const weekStart = useMemo(() => startOfWeek(currentDate, { weekStartsOn: 0 }), [currentDate]);
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
@@ -104,6 +121,70 @@ export default function AgendaPage() {
     setEditing(apt);
     setDefaultTime(undefined);
     setDialogOpen(true);
+  };
+
+  const openBlock = (defaults?: { start?: string; end?: string }) => {
+    setBlockDefaults(defaults || {});
+    setBlockOpen(true);
+  };
+
+  const handleBlockSubmit = async (data: TimeOffFormData) => {
+    await createTimeOff.mutateAsync(data);
+  };
+
+  // Drag-to-select on day column
+  const columnRef = useRef<HTMLDivElement | null>(null);
+  const dragStartRef = useRef<{ y: number; slotIdx: number } | null>(null);
+  const [dragRange, setDragRange] = useState<{ top: number; height: number } | null>(null);
+
+  const yToSlotIdx = (y: number) =>
+    Math.max(0, Math.min(daySlots.length - 1, Math.floor(y / SLOT_HEIGHT)));
+
+  const onColumnMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    if (!columnRef.current) return;
+    const rect = columnRef.current.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const slotIdx = yToSlotIdx(y);
+    dragStartRef.current = { y, slotIdx };
+    setDragRange({ top: slotIdx * SLOT_HEIGHT, height: SLOT_HEIGHT });
+  };
+
+  const onColumnMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!dragStartRef.current || !columnRef.current) return;
+    const rect = columnRef.current.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const startIdx = dragStartRef.current.slotIdx;
+    const currIdx = yToSlotIdx(y);
+    const a = Math.min(startIdx, currIdx);
+    const b = Math.max(startIdx, currIdx);
+    setDragRange({ top: a * SLOT_HEIGHT, height: (b - a + 1) * SLOT_HEIGHT });
+  };
+
+  const onColumnMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!dragStartRef.current || !columnRef.current) {
+      setDragRange(null);
+      return;
+    }
+    const rect = columnRef.current.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const startIdx = dragStartRef.current.slotIdx;
+    const currIdx = yToSlotIdx(y);
+    dragStartRef.current = null;
+    setDragRange(null);
+
+    const a = Math.min(startIdx, currIdx);
+    const b = Math.max(startIdx, currIdx);
+    const startMin = dayOriginMin + a * DEFAULT_SLOT_MINUTES;
+    const endMin = dayOriginMin + (b + 1) * DEFAULT_SLOT_MINUTES;
+
+    if (b > a) {
+      // Dragged across multiple slots → open block dialog
+      openBlock({ start: minutesToTime(startMin), end: minutesToTime(endMin) });
+    } else {
+      // Simple click → create appointment on that slot
+      openCreate(minutesToTime(startMin));
+    }
   };
 
   const handleSubmit = async (data: AppointmentFormData) => {
@@ -194,6 +275,15 @@ export default function AgendaPage() {
             <Button onClick={() => openCreate()} className="rounded-[12px] bg-tx1 hover:bg-tx1/90 text-background h-10">
               <Plus className="w-4 h-4 mr-2" />
               Novo agendamento
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => openBlock()}
+              className="rounded-[12px] h-10"
+              title="Bloquear um intervalo (também é possível arrastando na agenda)"
+            >
+              <Ban className="w-4 h-4 mr-2" />
+              Bloquear horário
             </Button>
           </div>
         </div>
@@ -286,11 +376,24 @@ export default function AgendaPage() {
                   </div>
 
                   {/* Slots + appointments layer */}
-                  <div className="relative" style={{ height: dayHeight }}>
+                  <div
+                    ref={columnRef}
+                    className="relative select-none"
+                    style={{ height: dayHeight }}
+                    onMouseDown={onColumnMouseDown}
+                    onMouseMove={onColumnMouseMove}
+                    onMouseUp={onColumnMouseUp}
+                    onMouseLeave={() => {
+                      if (dragStartRef.current) {
+                        dragStartRef.current = null;
+                        setDragRange(null);
+                      }
+                    }}
+                    title="Clique para agendar, arraste para bloquear um intervalo"
+                  >
                     {daySlots.map((time, idx) => (
                       <div
                         key={time}
-                        onClick={() => openCreate(time)}
                         className={cn(
                           "absolute left-0 right-0 border-t border-line2 hover:bg-panel2 cursor-pointer transition-colors",
                           idx === 0 && "border-t-0",
@@ -298,6 +401,37 @@ export default function AgendaPage() {
                         style={{ top: idx * SLOT_HEIGHT, height: SLOT_HEIGHT }}
                       />
                     ))}
+
+                    {dragRange && (
+                      <div
+                        className="absolute left-2 right-2 rounded-[10px] border-2 border-dashed border-primary bg-primary/10 pointer-events-none z-20"
+                        style={{ top: dragRange.top, height: dragRange.height }}
+                      />
+                    )}
+
+                    {filteredDayTimeOffs.map((to) => {
+                      const startMin = timeToMinutes(to.start_time);
+                      const endMin = timeToMinutes(to.end_time);
+                      const top =
+                        ((startMin - dayOriginMin) / DEFAULT_SLOT_MINUTES) * SLOT_HEIGHT;
+                      const height = Math.max(
+                        ((endMin - startMin) / DEFAULT_SLOT_MINUTES) * SLOT_HEIGHT - 4,
+                        28,
+                      );
+                      return (
+                        <div
+                          key={to.id}
+                          className="absolute left-2 right-2 z-[5]"
+                          style={{ top, height }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
+                          <TimeOffBlock
+                            timeOff={to}
+                            onDelete={() => deleteTimeOff.mutate(to.id)}
+                          />
+                        </div>
+                      );
+                    })}
 
                     {filteredDayApts.map((apt) => {
                       const startMin = timeToMinutes(apt.start_time);
@@ -314,6 +448,7 @@ export default function AgendaPage() {
                           className="absolute left-2 right-2 z-10"
                           style={{ top, height }}
                           onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
                         >
                           <AppointmentCard
                             appointment={apt}
@@ -467,6 +602,17 @@ export default function AgendaPage() {
         defaultTime={defaultTime}
         onSubmit={handleSubmit}
         isLoading={createAppointment.isPending || updateAppointment.isPending}
+      />
+
+      <BlockTimeDialog
+        open={blockOpen}
+        onOpenChange={setBlockOpen}
+        date={currentDate}
+        defaultStart={blockDefaults.start}
+        defaultEnd={blockDefaults.end}
+        defaultProfessionalId={selectedProfessional || undefined}
+        onSubmit={handleBlockSubmit}
+        isLoading={createTimeOff.isPending}
       />
     </AppLayout>
   );
