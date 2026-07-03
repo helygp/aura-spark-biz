@@ -29,12 +29,12 @@ import { addDays, format, startOfWeek } from "date-fns";
 
 const BUCKETS = [8, 10, 12, 14, 16, 18];
 const FALLBACK_COLORS = [
-  "hsl(262, 83%, 58%)",
-  "hsl(142, 71%, 45%)",
-  "hsl(217, 91%, 60%)",
-  "hsl(38, 92%, 50%)",
-  "hsl(340, 82%, 60%)",
-  "hsl(180, 70%, 45%)",
+  "hsl(15, 62%, 48%)",
+  "hsl(146, 34%, 37%)",
+  "hsl(38, 74%, 42%)",
+  "hsl(30, 8%, 25%)",
+  "hsl(15, 40%, 62%)",
+  "hsl(200, 30%, 40%)",
 ];
 const DAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
@@ -321,8 +321,8 @@ export default function RelatoriosPage() {
                   <AreaChart data={revenueData}>
                     <defs>
                       <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(262, 83%, 58%)" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="hsl(262, 83%, 58%)" stopOpacity={0} />
+                        <stop offset="5%" stopColor="hsl(15, 62%, 48%)" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="hsl(15, 62%, 48%)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -339,7 +339,7 @@ export default function RelatoriosPage() {
                     <Area
                       type="monotone"
                       dataKey="value"
-                      stroke="hsl(262, 83%, 58%)"
+                      stroke="hsl(15, 62%, 48%)"
                       strokeWidth={2}
                       fillOpacity={1}
                       fill="url(#colorValue)"
