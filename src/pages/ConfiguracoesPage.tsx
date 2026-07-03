@@ -1,26 +1,31 @@
+import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { 
-  Building2, 
-  Users, 
-  Scissors, 
-  Link2, 
+import { Switch } from "@/components/ui/switch";
+import {
+  Building2,
+  Users,
+  Scissors,
+  Link2,
   Palette,
   Bell,
   Shield,
   ChevronRight,
   Check,
   Plus,
-  ExternalLink,
-  Clock
+  Clock,
+  Edit,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BusinessHoursCard } from "@/components/settings/BusinessHoursCard";
+import { useBusiness } from "@/hooks/useBusiness";
+import { useProfessionals, Professional } from "@/hooks/useProfessionals";
+import { ProfessionalDialog, ProfessionalFormValues } from "@/components/settings/ProfessionalDialog";
 
 const menuItems = [
   { icon: Building2, label: "Dados do Negócio", description: "Nome, endereço, contato" },
@@ -34,39 +39,85 @@ const menuItems = [
 ];
 
 const integrations = [
-  { 
-    name: "Google Agenda", 
-    description: "Sincronize agendamentos automaticamente",
-    connected: true,
-    icon: "🗓️"
-  },
-  { 
-    name: "WhatsApp Business", 
-    description: "Envie mensagens automáticas",
-    connected: true,
-    icon: "💬"
-  },
-  { 
-    name: "Google Meu Negócio", 
-    description: "Mantenha seu perfil atualizado",
-    connected: false,
-    icon: "📍"
-  },
-  { 
-    name: "Stripe", 
-    description: "Receba pagamentos online",
-    connected: false,
-    icon: "💳"
-  },
-];
-
-const team = [
-  { name: "Carlos Silva", role: "Barbeiro", status: "active" },
-  { name: "Ana Santos", role: "Cabeleireira", status: "active" },
-  { name: "Pedro Lima", role: "Barbeiro", status: "active" },
+  { name: "Google Agenda", description: "Sincronize agendamentos automaticamente", icon: "🗓️" },
+  { name: "WhatsApp Business", description: "Envie mensagens automáticas", icon: "💬" },
+  { name: "Google Meu Negócio", description: "Mantenha seu perfil atualizado", icon: "📍" },
+  { name: "Stripe", description: "Receba pagamentos online", icon: "💳" },
 ];
 
 export default function ConfiguracoesPage() {
+  const { business, isLoading: businessLoading, updateBusiness } = useBusiness();
+  const {
+    professionals,
+    isLoading: proLoading,
+    createProfessional,
+    updateProfessional,
+  } = useProfessionals();
+
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingPro, setEditingPro] = useState<Professional | null>(null);
+
+  useEffect(() => {
+    if (business) {
+      setName(business.name ?? "");
+      setPhone(business.phone ?? "");
+      setAddress(business.address ?? "");
+    }
+  }, [business]);
+
+  const handleSaveBusiness = () => {
+    if (!name.trim()) return;
+    updateBusiness.mutate({ name, phone: phone || null, address: address || null });
+  };
+
+  const openCreatePro = () => {
+    setEditingPro(null);
+    setDialogOpen(true);
+  };
+
+  const openEditPro = (pro: Professional) => {
+    setEditingPro(pro);
+    setDialogOpen(true);
+  };
+
+  const handleProSubmit = (data: ProfessionalFormValues) => {
+    const payload = {
+      name: data.name ?? "",
+      role: data.role ?? null,
+      color: data.color ?? "#8B5CF6",
+      is_active: data.is_active ?? true,
+    };
+    if (editingPro) {
+      updateProfessional.mutate(
+        { id: editingPro.id, ...payload },
+        {
+          onSuccess: () => {
+            setDialogOpen(false);
+            setEditingPro(null);
+          },
+        }
+      );
+    } else {
+      createProfessional.mutate(payload, {
+        onSuccess: () => setDialogOpen(false),
+      });
+    }
+  };
+
+  const toggleActive = (pro: Professional) => {
+    updateProfessional.mutate({
+      id: pro.id,
+      name: pro.name,
+      color: pro.color,
+      role: pro.role,
+      is_active: !pro.is_active,
+    });
+  };
+
   return (
     <AppLayout title="Configurações" subtitle="Gerencie seu negócio">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-fade-in">
@@ -79,8 +130,8 @@ export default function ConfiguracoesPage() {
                   key={item.label}
                   className={cn(
                     "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all",
-                    index === 0 
-                      ? "bg-primary/10 text-primary" 
+                    index === 0
+                      ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
@@ -108,26 +159,58 @@ export default function ConfiguracoesPage() {
               <CardDescription>Informações básicas do seu estabelecimento</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="business-name">Nome do Negócio</Label>
-                  <Input id="business-name" defaultValue="Barbearia Premium" />
+              {businessLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Telefone</Label>
-                  <Input id="phone" defaultValue="(11) 99999-0000" />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="address">Endereço</Label>
-                  <Input id="address" defaultValue="Rua das Flores, 123 - Centro" />
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <Button variant="gradient">
-                  <Check className="w-4 h-4 mr-2" />
-                  Salvar Alterações
-                </Button>
-              </div>
+              ) : !business ? (
+                <p className="text-sm text-muted-foreground">
+                  Nenhum estabelecimento encontrado.
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="business-name">Nome do Negócio</Label>
+                      <Input
+                        id="business-name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Telefone</Label>
+                      <Input
+                        id="phone"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="address">Endereço</Label>
+                      <Input
+                        id="address"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      variant="gradient"
+                      onClick={handleSaveBusiness}
+                      disabled={updateBusiness.isPending || !name.trim()}
+                    >
+                      {updateBusiness.isPending ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4 mr-2" />
+                      )}
+                      Salvar Alterações
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -144,37 +227,75 @@ export default function ConfiguracoesPage() {
                 </CardTitle>
                 <CardDescription>Profissionais cadastrados</CardDescription>
               </div>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={openCreatePro}>
                 <Plus className="w-4 h-4 mr-2" />
                 Adicionar
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {team.map((member, index) => (
-                  <div 
-                    key={member.name}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 animate-slide-up"
-                    style={{ animationDelay: `${index * 50}ms` }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-sm font-semibold text-primary">
-                          {member.name.split(" ").map(n => n[0]).join("")}
-                        </span>
+              {proLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : professionals.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Nenhum profissional cadastrado ainda
+                  </p>
+                  <Button variant="outline" size="sm" onClick={openCreatePro}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar primeiro profissional
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {professionals.map((member, index) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-muted/50 animate-slide-up"
+                      style={{ animationDelay: `${index * 50}ms` }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center"
+                          style={{ backgroundColor: `${member.color}20` }}
+                        >
+                          <span className="text-sm font-semibold" style={{ color: member.color }}>
+                            {member.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground">{member.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {member.role || "—"}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-foreground">{member.name}</p>
-                        <p className="text-sm text-muted-foreground">{member.role}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <Badge variant={member.is_active ? "success" : "muted"}>
+                            {member.is_active ? "Ativo" : "Inativo"}
+                          </Badge>
+                          <Switch
+                            checked={member.is_active}
+                            onCheckedChange={() => toggleActive(member)}
+                            disabled={updateProfessional.isPending}
+                          />
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => openEditPro(member)}>
+                          <Edit className="w-4 h-4 mr-1" />
+                          Editar
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="success">Ativo</Badge>
-                      <Button variant="ghost" size="sm">Editar</Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -185,19 +306,16 @@ export default function ConfiguracoesPage() {
                 <Link2 className="w-5 h-5 text-primary" />
                 Integrações
               </CardTitle>
-              <CardDescription>Conecte ferramentas externas</CardDescription>
+              <CardDescription>
+                Integrações em desenvolvimento — em breve você poderá conectar essas ferramentas ao AuraServices.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {integrations.map((integration, index) => (
-                  <div 
+                  <div
                     key={integration.name}
-                    className={cn(
-                      "flex items-center justify-between p-4 rounded-lg border transition-all animate-slide-up",
-                      integration.connected 
-                        ? "border-success/30 bg-success/5" 
-                        : "border-border hover:border-primary/30"
-                    )}
+                    className="flex items-center justify-between p-4 rounded-lg border border-border animate-slide-up"
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
                     <div className="flex items-center gap-3">
@@ -207,17 +325,7 @@ export default function ConfiguracoesPage() {
                         <p className="text-xs text-muted-foreground">{integration.description}</p>
                       </div>
                     </div>
-                    {integration.connected ? (
-                      <Badge variant="success">
-                        <Check className="w-3 h-3 mr-1" />
-                        Conectado
-                      </Badge>
-                    ) : (
-                      <Button variant="outline" size="sm">
-                        Conectar
-                        <ExternalLink className="w-3 h-3 ml-1" />
-                      </Button>
-                    )}
+                    <Badge variant="muted">Em breve</Badge>
                   </div>
                 ))}
               </div>
@@ -225,6 +333,17 @@ export default function ConfiguracoesPage() {
           </Card>
         </div>
       </div>
+
+      <ProfessionalDialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditingPro(null);
+        }}
+        professional={editingPro}
+        onSubmit={handleProSubmit}
+        isLoading={createProfessional.isPending || updateProfessional.isPending}
+      />
     </AppLayout>
   );
 }

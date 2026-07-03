@@ -58,9 +58,35 @@ export function useBusiness() {
     },
   });
 
+  const updateBusiness = useMutation({
+    mutationFn: async (input: { name: string; phone?: string | null; address?: string | null }) => {
+      if (!business?.id) throw new Error('Estabelecimento não encontrado');
+      const { data, error } = await supabase
+        .from('businesses')
+        .update({
+          name: input.name,
+          phone: input.phone ?? null,
+          address: input.address ?? null,
+        })
+        .eq('id', business.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['business', user?.id] });
+      toast({ title: 'Dados atualizados com sucesso!' });
+    },
+    onError: (error) => {
+      toast({ title: 'Erro ao atualizar dados', description: error.message, variant: 'destructive' });
+    },
+  });
+
   return {
     business,
     isLoading,
     createBusiness,
+    updateBusiness,
   };
 }
