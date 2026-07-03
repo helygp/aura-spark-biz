@@ -35,12 +35,18 @@ Deno.serve(async (req) => {
   }
 
   if (req.method !== "POST") {
+    console.warn("[wa-appt] method_not_allowed", { method: req.method });
     return json({ error: "method_not_allowed" }, 405);
   }
 
   const agentKey = req.headers.get("x-agent-key") ?? req.headers.get("X-Agent-Key");
   const expected = Deno.env.get("WHATSAPP_AGENT_KEY");
   if (!expected || !agentKey || agentKey !== expected) {
+    console.warn("[wa-appt] unauthorized", {
+      has_expected: !!expected,
+      has_agent_key: !!agentKey,
+      key_match: !!expected && !!agentKey && agentKey === expected,
+    });
     return json({ error: "unauthorized" }, 401);
   }
 
@@ -48,8 +54,10 @@ Deno.serve(async (req) => {
   try {
     body = await req.json();
   } catch {
+    console.error("[wa-appt] invalid_json");
     return json({ error: "invalid_json" }, 400);
   }
+  console.log("[wa-appt] request", { body });
 
   const business_id = String(body.business_id ?? "");
   const client_name = String(body.client_name ?? "").trim();
@@ -60,12 +68,18 @@ Deno.serve(async (req) => {
   const professional_id = body.professional_id ? String(body.professional_id) : null;
 
   if (!business_id || !client_name || !client_phone || !service_id || !date || !start_time_raw) {
+    console.warn("[wa-appt] missing_fields", {
+      business_id: !!business_id, client_name: !!client_name, client_phone: !!client_phone,
+      service_id: !!service_id, date: !!date, start_time: !!start_time_raw,
+    });
     return json({ error: "missing_fields", message: "business_id, client_name, client_phone, service_id, date, start_time são obrigatórios" }, 400);
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    console.warn("[wa-appt] invalid_date", { date });
     return json({ error: "invalid_date", message: "date deve estar no formato YYYY-MM-DD" }, 400);
   }
   if (!/^\d{1,2}:\d{2}$/.test(start_time_raw)) {
+    console.warn("[wa-appt] invalid_time", { start_time_raw });
     return json({ error: "invalid_time", message: "start_time deve estar no formato HH:MM" }, 400);
   }
 
