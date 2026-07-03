@@ -14,7 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+        sans: ['Hanken Grotesk', 'system-ui', 'sans-serif'],
+        serif: ['Newsreader', 'ui-serif', 'Georgia', 'serif'],
+        display: ['Newsreader', 'ui-serif', 'Georgia', 'serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -22,6 +24,18 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        panel2: "hsl(var(--panel2))",
+        line2: "hsl(var(--line2))",
+        tx1: "hsl(var(--tx1))",
+        tx2: "hsl(var(--tx2))",
+        tx3: "hsl(var(--tx3))",
+        tx4: "hsl(var(--tx4))",
+        hero: {
+          DEFAULT: "hsl(var(--hero))",
+          2: "hsl(var(--hero-2))",
+          foreground: "hsl(var(--hero-foreground))",
+        },
+        whatsapp: "hsl(var(--whatsapp))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -79,9 +93,11 @@ export default {
         },
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        sm: "8px",
+        md: "12px",
+        lg: "var(--radius)",           /* 16px */
+        xl: "22px",
+        "2xl": "28px",
       },
       boxShadow: {
         'soft': '0 2px 8px -2px hsl(var(--foreground) / 0.08)',
