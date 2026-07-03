@@ -1,4 +1,4 @@
-import { Bell, Search, User, LogOut } from "lucide-react";
+import { Bell, Search, User, LogOut, PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -15,9 +15,10 @@ import { useNavigate } from "react-router-dom";
 interface AppHeaderProps {
   title: string;
   subtitle?: string;
+  onToggleSidebar?: () => void;
 }
 
-export function AppHeader({ title, subtitle }: AppHeaderProps) {
+export function AppHeader({ title, subtitle, onToggleSidebar }: AppHeaderProps) {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -29,11 +30,21 @@ export function AppHeader({ title, subtitle }: AppHeaderProps) {
   return (
     <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="flex items-center justify-between px-[34px] py-5">
-        <div>
-          <h1 className="font-display text-[26px] leading-none text-tx1">{title}</h1>
-          {subtitle && (
-            <p className="text-[13px] text-tx3 mt-1.5">{subtitle}</p>
-          )}
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onToggleSidebar}
+            className="hidden md:flex h-10 w-10 rounded-[12px] bg-card border border-border hover:bg-line2"
+          >
+            <PanelLeft className="w-4 h-4 text-tx2" strokeWidth={1.8} />
+          </Button>
+          <div>
+            <h1 className="font-display text-[26px] leading-none text-tx1">{title}</h1>
+            {subtitle && (
+              <p className="text-[13px] text-tx3 mt-1.5">{subtitle}</p>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
