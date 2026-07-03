@@ -9,6 +9,7 @@ export interface Professional {
   user_id: string | null;
   name: string;
   color: string;
+  role: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -17,6 +18,7 @@ export interface Professional {
 export interface ProfessionalFormData {
   name: string;
   color?: string;
+  role?: string | null;
   is_active?: boolean;
 }
 
@@ -48,6 +50,7 @@ export function useProfessionals() {
           business_id: business.id,
           name: formData.name,
           color: formData.color || "#8B5CF6",
+          role: formData.role || null,
           is_active: formData.is_active ?? true,
         })
         .select()
@@ -71,6 +74,7 @@ export function useProfessionals() {
         .update({
           name: formData.name,
           color: formData.color,
+          role: formData.role ?? null,
           is_active: formData.is_active,
         })
         .eq("id", id)
