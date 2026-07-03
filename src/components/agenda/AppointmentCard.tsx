@@ -1,6 +1,6 @@
 import { Appointment, AppointmentStatus } from "@/hooks/useAppointments";
 import { cn } from "@/lib/utils";
-import { MoreHorizontal, Clock, User, Scissors, MessageSquare } from "lucide-react";
+import { MoreHorizontal, MessageSquare } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,23 +34,22 @@ export function AppointmentCard({
   onDelete,
 }: AppointmentCardProps) {
   const status = statusConfig[appointment.status];
-  const professionalColor = appointment.professional?.color || "#8B5CF6";
   const isAi = appointment.source === "whatsapp";
+  const accentColor = isAi ? "hsl(var(--primary))" : "hsl(var(--border))";
 
   return (
     <div
-      className="rounded-lg p-3 text-sm cursor-pointer hover:opacity-90 transition-opacity border-l-4"
-      style={{
-        backgroundColor: `${professionalColor}15`,
-        borderLeftColor: professionalColor,
-      }}
+      className={cn(
+        "h-full rounded-[14px] px-3 py-2 text-sm cursor-pointer transition-all border border-border hover:shadow-md",
+        isAi ? "bg-primary/10" : "bg-card",
+      )}
+      style={{ borderLeft: `3px solid ${accentColor}` }}
       onClick={onEdit}
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-2 h-full">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-            <span className="font-medium">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="font-display text-[15px] text-tx1">
               {appointment.start_time.slice(0, 5)} - {appointment.end_time.slice(0, 5)}
             </span>
             {isAi && (
@@ -59,10 +58,10 @@ export function AppointmentCard({
                   <TooltipTrigger asChild>
                     <span
                       onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1 rounded-full bg-primary/15 text-primary px-1.5 py-0.5 text-[10px] font-semibold"
+                      className="inline-flex items-center gap-1 rounded-full bg-whatsapp/15 text-whatsapp px-1.5 py-0.5 text-[10px] font-semibold"
                     >
                       <MessageSquare className="h-2.5 w-2.5" />
-                      IA
+                      via WhatsApp
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>Agendado pelo agente de IA no WhatsApp</TooltipContent>
@@ -70,34 +69,20 @@ export function AppointmentCard({
               </TooltipProvider>
             )}
           </div>
-          
-          {appointment.client && (
-            <div className="flex items-center gap-2 mb-1">
-              <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-              <span className="truncate">{appointment.client.name}</span>
-            </div>
-          )}
-          
-          {appointment.service && (
-            <div className="flex items-center gap-2 mb-1">
-              <Scissors className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-              <span className="truncate">{appointment.service.name}</span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 mt-2">
-            <span className={cn("text-xs px-2 py-0.5 rounded-full", status.className)}>
+          <div className="text-[13px] font-medium text-tx1 truncate">
+            {appointment.client?.name || "Sem cliente"}
+          </div>
+          <div className="text-[11.5px] text-tx3 truncate">
+            {appointment.service?.name || "—"}
+            {appointment.professional?.name && ` • ${appointment.professional.name}`}
+          </div>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className={cn("text-[10px] px-2 py-0.5 rounded-full", status.className)}>
               {status.label}
             </span>
-            {appointment.professional && (
-              <span
-                className="text-xs px-2 py-0.5 rounded-full"
-                style={{
-                  backgroundColor: professionalColor,
-                  color: "white",
-                }}
-              >
-                {appointment.professional.name}
+            {appointment.price > 0 && (
+              <span className="ml-auto font-display text-[13px] text-tx1">
+                R$ {Number(appointment.price).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
               </span>
             )}
           </div>
@@ -105,7 +90,7 @@ export function AppointmentCard({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="icon" className="h-6 w-6">
+            <Button variant="ghost" size="icon" className="h-6 w-6 -mr-1 text-tx4">
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
