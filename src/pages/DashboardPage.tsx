@@ -2,19 +2,17 @@ import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Calendar,
-  DollarSign,
   Clock,
   Users,
-  Bot,
   ChevronRight,
   Sparkles,
   MessageSquare,
   Loader2,
+  ArrowUpRight,
+  Plus,
 } from "lucide-react";
 import { addDays, format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -35,17 +33,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-const statusMeta: Record<
-  string,
-  { label: string; variant: "success" | "warning" | "muted" | "info" | "destructive" }
-> = {
-  scheduled: { label: "Agendado", variant: "info" },
-  confirmed: { label: "Confirmado", variant: "success" },
-  in_progress: { label: "Em atendimento", variant: "warning" },
-  completed: { label: "Concluído", variant: "muted" },
-  cancelled: { label: "Cancelado", variant: "destructive" },
-  no_show: { label: "Não compareceu", variant: "muted" },
-};
+// (status label mapping kept inline where needed)
 
 function useInactiveClientsCount(businessId?: string) {
   return useQuery({
