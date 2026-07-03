@@ -375,6 +375,105 @@ export type Database = {
         }
         Relationships: []
       }
+      sale_items: {
+        Row: {
+          id: string
+          item_id: string
+          item_type: string
+          name: string
+          price: number
+          quantity: number
+          sale_id: string
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          item_type: string
+          name: string
+          price: number
+          quantity?: number
+          sale_id: string
+        }
+        Update: {
+          id?: string
+          item_id?: string
+          item_type?: string
+          name?: string
+          price?: number
+          quantity?: number
+          sale_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_items_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales: {
+        Row: {
+          business_id: string
+          client_id: string | null
+          commission_amount: number
+          commission_pct: number
+          created_at: string
+          id: string
+          payment_method: string
+          professional_id: string | null
+          subtotal: number
+          total: number
+        }
+        Insert: {
+          business_id: string
+          client_id?: string | null
+          commission_amount?: number
+          commission_pct?: number
+          created_at?: string
+          id?: string
+          payment_method?: string
+          professional_id?: string | null
+          subtotal?: number
+          total?: number
+        }
+        Update: {
+          business_id?: string
+          client_id?: string | null
+          commission_amount?: number
+          commission_pct?: number
+          created_at?: string
+          id?: string
+          payment_method?: string
+          professional_id?: string | null
+          subtotal?: number
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       services: {
         Row: {
           business_id: string

@@ -1,125 +1,184 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Search, 
-  Plus, 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Search,
+  Plus,
   Minus,
   Trash2,
   CreditCard,
   Banknote,
   QrCode,
-  User,
   Scissors,
   ShoppingBag,
   Receipt,
-  Check
+  Check,
+  Loader2,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-
-// Mock data
-const services = [
-  { id: 1, name: "Corte Masculino", price: 45, duration: 30 },
-  { id: 2, name: "Corte + Barba", price: 70, duration: 60 },
-  { id: 3, name: "Barba", price: 35, duration: 30 },
-  { id: 4, name: "Corte Degradê", price: 55, duration: 45 },
-  { id: 5, name: "Hidratação", price: 40, duration: 30 },
-  { id: 6, name: "Coloração", price: 120, duration: 90 },
-];
-
-const products = [
-  { id: 1, name: "Pomada Modeladora", price: 45, stock: 12 },
-  { id: 2, name: "Óleo para Barba", price: 55, stock: 8 },
-  { id: 3, name: "Shampoo Anticaspa", price: 38, stock: 15 },
-  { id: 4, name: "Cera Capilar", price: 42, stock: 6 },
-  { id: 5, name: "Pós-Barba", price: 35, stock: 10 },
-];
+import { useBusiness } from "@/hooks/useBusiness";
+import { useServices } from "@/hooks/useServices";
+import { useProducts } from "@/hooks/useProducts";
+import { useClients } from "@/hooks/useClients";
+import { useProfessionals } from "@/hooks/useProfessionals";
+import { useSales } from "@/hooks/useSales";
 
 interface CartItem {
-  id: number;
+  item_id: string;
+  item_type: "service" | "product";
   name: string;
   price: number;
   quantity: number;
-  type: "service" | "product";
 }
 
+type PaymentMethod = "card" | "cash" | "pix";
+
+const NO_CLIENT = "__none__";
+
 export default function ComandaPage() {
-  const [cart, setCart] = useState<CartItem[]>([
-    { id: 1, name: "Corte + Barba", price: 70, quantity: 1, type: "service" },
-    { id: 1, name: "Pomada Modeladora", price: 45, quantity: 1, type: "product" },
-  ]);
+  const { business, isLoading: businessLoading } = useBusiness();
+  const { services, isLoading: servicesLoading } = useServices(business?.id);
+  const { products, isLoading: productsLoading } = useProducts(business?.id);
+  const { clients } = useClients();
+  const { professionals } = useProfessionals();
+  const { createSale, commissionPct } = useSales();
+
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"services" | "products">("services");
-  const [selectedClient] = useState("João Silva");
-  const [selectedProfessional] = useState("Carlos");
+  const [clientId, setClientId] = useState<string>(NO_CLIENT);
+  const [professionalId, setProfessionalId] = useState<string>("");
+  const [payment, setPayment] = useState<PaymentMethod>("cash");
 
-  const addToCart = (item: { id: number; name: string; price: number }, type: "service" | "product") => {
-    const existingItem = cart.find(c => c.id === item.id && c.type === type);
-    if (existingItem) {
-      setCart(cart.map(c => 
-        c.id === item.id && c.type === type 
-          ? { ...c, quantity: c.quantity + 1 } 
-          : c
-      ));
-    } else {
-      setCart([...cart, { ...item, quantity: 1, type }]);
-    }
-  };
+  const activeServices = services.filter((s) => s.is_active);
+  const activeProducts = products.filter((p) => p.is_active);
 
-  const updateQuantity = (id: number, type: "service" | "product", delta: number) => {
-    setCart(cart.map(item => {
-      if (item.id === id && item.type === type) {
-        const newQuantity = item.quantity + delta;
-        return newQuantity > 0 ? { ...item, quantity: newQuantity } : item;
+  const filteredItems =
+    activeTab === "services"
+      ? activeServices.filter((s) =>
+          s.name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      : activeProducts.filter((p) =>
+          p.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+  const addToCart = (item: { id: string; name: string; price: number }, type: "service" | "product") => {
+    setCart((prev) => {
+      const existing = prev.find((c) => c.item_id === item.id && c.item_type === type);
+      if (existing) {
+        return prev.map((c) =>
+          c.item_id === item.id && c.item_type === type
+            ? { ...c, quantity: c.quantity + 1 }
+            : c
+        );
       }
-      return item;
-    }).filter(item => item.quantity > 0));
+      return [
+        ...prev,
+        { item_id: item.id, item_type: type, name: item.name, price: Number(item.price), quantity: 1 },
+      ];
+    });
   };
 
-  const removeFromCart = (id: number, type: "service" | "product") => {
-    setCart(cart.filter(item => !(item.id === id && item.type === type)));
+  const updateQuantity = (id: string, type: "service" | "product", delta: number) => {
+    setCart((prev) =>
+      prev
+        .map((it) =>
+          it.item_id === id && it.item_type === type
+            ? { ...it, quantity: it.quantity + delta }
+            : it
+        )
+        .filter((it) => it.quantity > 0)
+    );
+  };
+
+  const removeFromCart = (id: string, type: "service" | "product") => {
+    setCart((prev) => prev.filter((it) => !(it.item_id === id && it.item_type === type)));
   };
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const commission = subtotal * 0.4; // 40% commission
+  const commission = subtotal * (commissionPct / 100);
 
-  const filteredItems = activeTab === "services" 
-    ? services.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    : products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const selectedProfessional = professionals.find((p) => p.id === professionalId);
+
+  const handleFinalize = () => {
+    if (!professionalId || cart.length === 0) return;
+    createSale.mutate(
+      {
+        client_id: clientId === NO_CLIENT ? null : clientId,
+        professional_id: professionalId,
+        items: cart,
+        payment_method: payment,
+      },
+      {
+        onSuccess: () => {
+          setCart([]);
+          setClientId(NO_CLIENT);
+          setProfessionalId("");
+          setPayment("cash");
+        },
+      }
+    );
+  };
+
+  if (businessLoading || servicesLoading || productsLoading) {
+    return (
+      <AppLayout title="Comanda" subtitle="Registre vendas e serviços">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const canFinalize = cart.length > 0 && !!professionalId && !createSale.isPending;
 
   return (
     <AppLayout title="Comanda" subtitle="Registre vendas e serviços">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
         {/* Items Selection */}
         <div className="lg:col-span-2 space-y-4">
-          {/* Client & Professional Info */}
+          {/* Client & Professional selectors */}
           <Card variant="elevated">
             <CardContent className="p-4">
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="flex items-center gap-3 flex-1 min-w-[200px]">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <User className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Cliente</p>
-                    <p className="font-medium text-foreground">{selectedClient}</p>
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Cliente</label>
+                  <Select value={clientId} onValueChange={setClientId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_CLIENT}>Sem cliente</SelectItem>
+                      {clients.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="flex items-center gap-3 flex-1 min-w-[200px]">
-                  <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
-                    <Scissors className="w-5 h-5 text-success" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Profissional</p>
-                    <p className="font-medium text-foreground">{selectedProfessional}</p>
-                  </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">
+                    Profissional <span className="text-destructive">*</span>
+                  </label>
+                  <Select value={professionalId} onValueChange={setProfessionalId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o profissional" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {professionals.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Button variant="outline" size="sm">
-                  Alterar
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -132,7 +191,9 @@ export default function ComandaPage() {
                   <button
                     className={cn(
                       "px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2",
-                      activeTab === "services" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"
+                      activeTab === "services"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-background text-muted-foreground hover:text-foreground"
                     )}
                     onClick={() => setActiveTab("services")}
                   >
@@ -142,7 +203,9 @@ export default function ComandaPage() {
                   <button
                     className={cn(
                       "px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2",
-                      activeTab === "products" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"
+                      activeTab === "products"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-background text-muted-foreground hover:text-foreground"
                     )}
                     onClick={() => setActiveTab("products")}
                   >
@@ -163,34 +226,49 @@ export default function ComandaPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {filteredItems.map((item, index) => (
-                  <button
-                    key={item.id}
-                    onClick={() => addToCart(item, activeTab === "services" ? "service" : "product")}
-                    className="flex items-center justify-between p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-left animate-slide-up"
-                    style={{ animationDelay: `${index * 50}ms` }}
-                  >
-                    <div>
-                      <p className="font-medium text-foreground">{item.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {activeTab === "services" 
-                          ? `${(item as typeof services[0]).duration} min`
-                          : `${(item as typeof products[0]).stock} em estoque`
+              {filteredItems.length === 0 ? (
+                <p className="text-center text-muted-foreground py-6 text-sm">
+                  {activeTab === "services"
+                    ? "Nenhum serviço cadastrado"
+                    : "Nenhum produto cadastrado"}
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {filteredItems.map((item, index) => {
+                    const isService = activeTab === "services";
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() =>
+                          addToCart(
+                            { id: item.id, name: item.name, price: Number(item.price) },
+                            isService ? "service" : "product"
+                          )
                         }
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold text-foreground">
-                        R$ {item.price}
-                      </span>
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Plus className="w-4 h-4 text-primary" />
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+                        className="flex items-center justify-between p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-left animate-slide-up"
+                        style={{ animationDelay: `${index * 50}ms` }}
+                      >
+                        <div>
+                          <p className="font-medium text-foreground">{item.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {isService
+                              ? `${(item as any).duration_minutes} min`
+                              : `${(item as any).stock_quantity} em estoque`}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-foreground">
+                            R$ {Number(item.price).toFixed(2)}
+                          </span>
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Plus className="w-4 h-4 text-primary" />
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -205,7 +283,6 @@ export default function ComandaPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Cart Items */}
               <div className="space-y-3 max-h-64 overflow-y-auto">
                 {cart.length === 0 ? (
                   <p className="text-center text-muted-foreground py-4">
@@ -213,41 +290,41 @@ export default function ComandaPage() {
                   </p>
                 ) : (
                   cart.map((item, index) => (
-                    <div 
-                      key={`${item.type}-${item.id}`}
+                    <div
+                      key={`${item.item_type}-${item.item_id}`}
                       className="flex items-center justify-between p-3 rounded-lg bg-muted/50 animate-slide-up"
                       style={{ animationDelay: `${index * 50}ms` }}
                     >
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-foreground text-sm truncate">{item.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          R$ {item.price} × {item.quantity}
+                          R$ {item.price.toFixed(2)} × {item.quantity}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-foreground">
-                          R$ {item.price * item.quantity}
+                          R$ {(item.price * item.quantity).toFixed(2)}
                         </span>
                         <div className="flex items-center gap-1">
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="icon-sm"
-                            onClick={() => updateQuantity(item.id, item.type, -1)}
+                            onClick={() => updateQuantity(item.item_id, item.item_type, -1)}
                           >
                             <Minus className="w-3 h-3" />
                           </Button>
                           <span className="w-5 text-center text-sm">{item.quantity}</span>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="icon-sm"
-                            onClick={() => updateQuantity(item.id, item.type, 1)}
+                            onClick={() => updateQuantity(item.item_id, item.item_type, 1)}
                           >
                             <Plus className="w-3 h-3" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="icon-sm"
-                            onClick={() => removeFromCart(item.id, item.type)}
+                            onClick={() => removeFromCart(item.item_id, item.item_type)}
                           >
                             <Trash2 className="w-3 h-3 text-destructive" />
                           </Button>
@@ -258,7 +335,6 @@ export default function ComandaPage() {
                 )}
               </div>
 
-              {/* Totals */}
               {cart.length > 0 && (
                 <>
                   <div className="border-t border-border pt-4 space-y-2">
@@ -267,7 +343,9 @@ export default function ComandaPage() {
                       <span className="text-foreground">R$ {subtotal.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Comissão ({selectedProfessional})</span>
+                      <span className="text-muted-foreground">
+                        Comissão{selectedProfessional ? ` (${selectedProfessional.name})` : ""}
+                      </span>
                       <span className="text-success">R$ {commission.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between font-semibold text-lg pt-2 border-t border-border">
@@ -276,27 +354,57 @@ export default function ComandaPage() {
                     </div>
                   </div>
 
-                  {/* Payment Methods */}
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-foreground">Forma de Pagamento</p>
                     <div className="grid grid-cols-3 gap-2">
-                      <Button variant="outline" size="sm" className="flex-col h-auto py-3">
+                      <Button
+                        variant={payment === "card" ? "default" : "outline"}
+                        size="sm"
+                        className="flex-col h-auto py-3"
+                        onClick={() => setPayment("card")}
+                      >
                         <CreditCard className="w-5 h-5 mb-1" />
                         <span className="text-xs">Cartão</span>
                       </Button>
-                      <Button variant="outline" size="sm" className="flex-col h-auto py-3">
+                      <Button
+                        variant={payment === "cash" ? "default" : "outline"}
+                        size="sm"
+                        className="flex-col h-auto py-3"
+                        onClick={() => setPayment("cash")}
+                      >
                         <Banknote className="w-5 h-5 mb-1" />
                         <span className="text-xs">Dinheiro</span>
                       </Button>
-                      <Button variant="outline" size="sm" className="flex-col h-auto py-3">
+                      <Button
+                        variant={payment === "pix" ? "default" : "outline"}
+                        size="sm"
+                        className="flex-col h-auto py-3"
+                        onClick={() => setPayment("pix")}
+                      >
                         <QrCode className="w-5 h-5 mb-1" />
                         <span className="text-xs">Pix</span>
                       </Button>
                     </div>
                   </div>
 
-                  <Button variant="gradient" size="lg" className="w-full">
-                    <Check className="w-4 h-4 mr-2" />
+                  {!professionalId && (
+                    <p className="text-xs text-warning text-center">
+                      Selecione um profissional para finalizar
+                    </p>
+                  )}
+
+                  <Button
+                    variant="gradient"
+                    size="lg"
+                    className="w-full"
+                    disabled={!canFinalize}
+                    onClick={handleFinalize}
+                  >
+                    {createSale.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Check className="w-4 h-4 mr-2" />
+                    )}
                     Finalizar Comanda
                   </Button>
                 </>
