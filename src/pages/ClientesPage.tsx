@@ -1,21 +1,20 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Search,
   Plus,
-  Phone,
-  Mail,
   Calendar,
   MessageSquare,
   Edit,
   Trash2,
   Loader2,
   Users,
+  Sparkles,
+  Phone,
+  Mail,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,35 +32,45 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const statusColors: Record<string, string> = {
-  active: "bg-success",
-  inactive: "bg-muted-foreground",
-};
-
 interface ClientStats {
   lastVisit: string | null;
   totalVisits: number;
   totalSpent: number;
+  firstVisit: string | null;
+  aiVisits: number;
+  history: Array<{
+    id: string;
+    date: string;
+    start_time: string;
+    service?: string | null;
+    source: string;
+    price: number;
+  }>;
 }
+
+const initialsOf = (name: string) =>
+  name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
 
 export default function ClientesPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { business, isLoading: businessLoading } = useBusiness();
   const { clients, isLoading, createClient, updateClient, deleteClient } = useClients();
 
   const { data: appointments = [] } = useQuery({
-    queryKey: ["clients-appointments", business?.id],
+    queryKey: ["clients-appointments-full", business?.id],
     queryFn: async () => {
       if (!business?.id) return [];
       const { data, error } = await supabase
         .from("appointments")
-        .select("client_id, status, price, start_time")
-        .eq("business_id", business.id);
+        .select("id, client_id, status, price, date, start_time, source, service:services(name)")
+        .eq("business_id", business.id)
+        .order("date", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
@@ -72,62 +81,91 @@ export default function ClientesPage() {
     const map = new Map<string, ClientStats>();
     for (const a of appointments as any[]) {
       if (!a.client_id) continue;
-      const s = map.get(a.client_id) ?? { lastVisit: null, totalVisits: 0, totalSpent: 0 };
+      const s =
+        map.get(a.client_id) ??
+        {
+          lastVisit: null,
+          firstVisit: null,
+          totalVisits: 0,
+          totalSpent: 0,
+          aiVisits: 0,
+          history: [],
+        };
+      const ts = `${a.date}T${a.start_time}`;
       if (a.status !== "cancelled") {
-        if (!s.lastVisit || new Date(a.start_time) > new Date(s.lastVisit)) {
-          s.lastVisit = a.start_time;
-        }
+        if (!s.lastVisit || new Date(ts) > new Date(s.lastVisit)) s.lastVisit = ts;
+        if (!s.firstVisit || new Date(ts) < new Date(s.firstVisit)) s.firstVisit = ts;
       }
       if (a.status === "completed") {
         s.totalVisits += 1;
         s.totalSpent += Number(a.price ?? 0);
       }
+      if (a.source === "whatsapp") s.aiVisits += 1;
+      s.history.push({
+        id: a.id,
+        date: a.date,
+        start_time: a.start_time,
+        service: a.service?.name ?? null,
+        source: a.source,
+        price: Number(a.price ?? 0),
+      });
       map.set(a.client_id, s);
     }
     return map;
   }, [appointments]);
 
-  const getDaysSinceLastVisit = (dateStr: string | null) => {
-    if (!dateStr) return Infinity;
-    const date = new Date(dateStr);
-    const today = new Date();
-    return Math.ceil(Math.abs(today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+  const daysSince = (d: string | null) => {
+    if (!d) return Infinity;
+    return Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
   };
 
   const enrichedClients = useMemo(
     () =>
       clients.map((c) => {
-        const stats = statsByClient.get(c.id) ?? { lastVisit: null, totalVisits: 0, totalSpent: 0 };
-        const days = getDaysSinceLastVisit(stats.lastVisit);
-        const status: "active" | "inactive" = stats.lastVisit && days <= 45 ? "active" : "inactive";
-        return { ...c, ...stats, status, daysSince: days };
+        const s =
+          statsByClient.get(c.id) ??
+          {
+            lastVisit: null,
+            firstVisit: null,
+            totalVisits: 0,
+            totalSpent: 0,
+            aiVisits: 0,
+            history: [],
+          };
+        const days = daysSince(s.lastVisit);
+        const status: "active" | "inactive" =
+          s.lastVisit && days <= 45 ? "active" : "inactive";
+        const isVip = s.totalSpent >= 800 || s.totalVisits >= 10;
+        return { ...c, ...s, status, daysSince: days, isVip };
       }),
-    [clients, statsByClient]
+    [clients, statsByClient],
   );
 
-  const filteredClients = enrichedClients.filter((client) => {
+  const filteredClients = enrichedClients.filter((c) => {
     const term = searchTerm.toLowerCase();
     const matchesSearch =
-      client.name.toLowerCase().includes(term) ||
-      (client.phone ?? "").toLowerCase().includes(term) ||
-      (client.email ?? "").toLowerCase().includes(term);
-    const matchesStatus = !statusFilter || client.status === statusFilter;
+      c.name.toLowerCase().includes(term) ||
+      (c.phone ?? "").toLowerCase().includes(term) ||
+      (c.email ?? "").toLowerCase().includes(term);
+    const matchesStatus = statusFilter === "all" || c.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-  };
+  useEffect(() => {
+    if (!selectedId && filteredClients.length > 0) {
+      setSelectedId(filteredClients[0].id);
+    }
+  }, [filteredClients, selectedId]);
 
-  const openCreate = () => {
-    setEditingClient(null);
-    setDialogOpen(true);
-  };
+  const selected = enrichedClients.find((c) => c.id === selectedId) || null;
 
-  const openEdit = (client: Client) => {
-    setEditingClient(client);
-    setDialogOpen(true);
+  const relationshipLabel = (firstVisit: string | null) => {
+    if (!firstVisit) return "Cliente novo";
+    const months = Math.floor(daysSince(firstVisit) / 30);
+    if (months < 1) return "Cliente novo";
+    if (months < 12) return `Cliente há ${months} mes${months > 1 ? "es" : ""}`;
+    const y = Math.floor(months / 12);
+    return `Cliente há ${y} ano${y > 1 ? "s" : ""}`;
   };
 
   const handleSubmit = (data: ClientFormValues) => {
@@ -145,17 +183,12 @@ export default function ClientesPage() {
             setDialogOpen(false);
             setEditingClient(null);
           },
-        }
+        },
       );
     } else {
-      createClient.mutate(payload, {
-        onSuccess: () => setDialogOpen(false),
-      });
+      createClient.mutate(payload, { onSuccess: () => setDialogOpen(false) });
     }
   };
-
-  const activeCount = enrichedClients.filter((c) => c.status === "active").length;
-  const inactiveCount = enrichedClients.filter((c) => c.daysSince > 45 && c.lastVisit).length;
 
   if (businessLoading || isLoading) {
     return (
@@ -167,198 +200,312 @@ export default function ClientesPage() {
     );
   }
 
+  const openWhatsApp = (phone: string | null) => {
+    if (!phone) return;
+    const digits = phone.replace(/\D/g, "");
+    window.open(`https://wa.me/${digits}`, "_blank");
+  };
+
   return (
     <AppLayout title="Clientes" subtitle={`${clients.length} clientes cadastrados`}>
-      <div className="space-y-4 animate-fade-in">
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Total de Clientes</p>
-              <p className="text-2xl font-bold text-foreground">{clients.length}</p>
-            </CardContent>
-          </Card>
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Clientes Ativos</p>
-              <p className="text-2xl font-bold text-success">{activeCount}</p>
-            </CardContent>
-          </Card>
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Sem Retorno (+45 dias)</p>
-              <p className="text-2xl font-bold text-warning">{inactiveCount}</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Controls */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome, telefone ou e-mail..."
-              className="pl-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg border border-input overflow-hidden">
-              <button
-                className={cn(
-                  "px-3 py-1.5 text-sm font-medium transition-colors",
-                  statusFilter === null ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"
-                )}
-                onClick={() => setStatusFilter(null)}
-              >
-                Todos
-              </button>
-              <button
-                className={cn(
-                  "px-3 py-1.5 text-sm font-medium transition-colors",
-                  statusFilter === "active" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"
-                )}
-                onClick={() => setStatusFilter("active")}
-              >
-                Ativos
-              </button>
-              <button
-                className={cn(
-                  "px-3 py-1.5 text-sm font-medium transition-colors",
-                  statusFilter === "inactive" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"
-                )}
-                onClick={() => setStatusFilter("inactive")}
-              >
-                Inativos
-              </button>
+      <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-5 animate-fade-in">
+        {/* Left: list */}
+        <div className="rounded-[20px] bg-card border border-border flex flex-col overflow-hidden max-h-[calc(100vh-160px)]">
+          <div className="p-4 border-b border-border space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tx4" strokeWidth={1.8} />
+              <Input
+                placeholder="Buscar cliente..."
+                className="pl-9 h-10 rounded-[12px] bg-panel2 border-line2 text-[13px]"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex rounded-full bg-panel2 p-1 text-[12px]">
+                {(["all", "active", "inactive"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={cn(
+                      "px-3 py-1 rounded-full font-medium transition-colors",
+                      statusFilter === s ? "bg-tx1 text-background" : "text-tx3 hover:text-tx1",
+                    )}
+                  >
+                    {s === "all" ? "Todos" : s === "active" ? "Ativos" : "Inativos"}
+                  </button>
+                ))}
+              </div>
+              <Button
+                size="icon-sm"
+                className="rounded-[10px] bg-tx1 hover:bg-tx1/90 text-background h-9 w-9"
+                onClick={() => {
+                  setEditingClient(null);
+                  setDialogOpen(true);
+                }}
+                title="Novo cliente"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
 
-            <Button variant="gradient" onClick={openCreate}>
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Cliente
-            </Button>
+          <div className="flex-1 overflow-y-auto">
+            {filteredClients.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                <Users className="w-10 h-10 text-tx4 mb-3" strokeWidth={1.5} />
+                <p className="text-[13px] text-tx3">Nenhum cliente encontrado</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 rounded-[10px]"
+                  onClick={() => {
+                    setEditingClient(null);
+                    setDialogOpen(true);
+                  }}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Novo cliente
+                </Button>
+              </div>
+            ) : (
+              <ul className="divide-y divide-line2">
+                {filteredClients.map((c) => {
+                  const isActive = selectedId === c.id;
+                  return (
+                    <li key={c.id}>
+                      <button
+                        onClick={() => setSelectedId(c.id)}
+                        className={cn(
+                          "w-full px-4 py-3 flex items-center gap-3 text-left transition-colors",
+                          isActive ? "bg-panel2" : "hover:bg-panel2/50",
+                        )}
+                      >
+                        <div className="w-10 h-10 rounded-[10px] bg-primary/10 text-primary flex items-center justify-center font-semibold text-[12px]">
+                          {initialsOf(c.name)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-[13.5px] font-medium text-tx1 truncate">
+                              {c.name}
+                            </p>
+                            {c.isVip && (
+                              <span className="text-[9px] font-semibold uppercase tracking-wide rounded-full bg-warning/15 text-warning px-1.5 py-0.5">
+                                VIP
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-tx4 truncate">
+                            {c.lastVisit
+                              ? `Última: há ${c.daysSince}d`
+                              : "Nunca visitou"}
+                          </p>
+                        </div>
+                        <div className="font-display text-[14px] text-tx1">
+                          R$ {c.totalSpent.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
 
-        {/* Clients List */}
-        {clients.length === 0 ? (
-          <Card variant="elevated">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Users className="w-12 h-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground text-center">
-                Nenhum cliente cadastrado ainda
-              </p>
-              <Button className="mt-4" onClick={openCreate}>
-                <Plus className="w-4 h-4 mr-2" />
-                Cadastrar primeiro cliente
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-        <Card variant="elevated">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Cliente</th>
-                    <th className="text-left p-4 text-sm font-medium text-muted-foreground hidden md:table-cell">Contato</th>
-                    <th className="text-left p-4 text-sm font-medium text-muted-foreground hidden lg:table-cell">Última Visita</th>
-                    <th className="text-left p-4 text-sm font-medium text-muted-foreground hidden lg:table-cell">Visitas</th>
-                    <th className="text-left p-4 text-sm font-medium text-muted-foreground hidden md:table-cell">Total Gasto</th>
-                    <th className="text-right p-4 text-sm font-medium text-muted-foreground">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredClients.map((client, index) => {
-                    const daysSince = client.daysSince;
-                    return (
-                      <tr 
-                        key={client.id}
-                        className="border-b border-border hover:bg-muted/50 transition-colors animate-slide-up cursor-pointer"
-                        style={{ animationDelay: `${index * 50}ms` }}
-                        onClick={() => openEdit(client)}
-                      >
-                        <td className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="relative">
-                              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                <span className="text-sm font-semibold text-primary">
-                                  {client.name.split(" ").map(n => n[0]).join("")}
-                                </span>
-                              </div>
-                              <span className={cn(
-                                "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card",
-                                statusColors[client.status]
-                              )} />
-                            </div>
-                            <div>
-                              <p className="font-medium text-foreground">{client.name}</p>
-                              <p className="text-xs text-muted-foreground md:hidden">{client.phone}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-4 hidden md:table-cell">
-                          <div className="space-y-1">
-                            {client.phone && (
-                              <p className="text-sm text-foreground flex items-center gap-1">
-                                <Phone className="w-3 h-3 text-muted-foreground" />
-                                {client.phone}
-                              </p>
+        {/* Right: detail */}
+        <div>
+          {!selected ? (
+            <div className="rounded-[20px] bg-card border border-border p-12 flex flex-col items-center justify-center text-center">
+              <Users className="w-12 h-12 text-tx4 mb-3" strokeWidth={1.5} />
+              <p className="text-tx3">Selecione um cliente para ver os detalhes</p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Header card */}
+              <div className="rounded-[22px] bg-card border border-border p-6">
+                <div className="flex items-start gap-5">
+                  <div className="w-16 h-16 rounded-[14px] bg-primary/10 text-primary flex items-center justify-center font-semibold text-lg">
+                    {initialsOf(selected.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="font-display text-[24px] text-tx1">{selected.name}</h2>
+                      {selected.isVip && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wide rounded-full bg-warning/15 text-warning px-2 py-0.5">
+                          VIP
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[12px] text-tx3 mt-1">
+                      {relationshipLabel(selected.firstVisit)}
+                    </p>
+                    <div className="flex items-center gap-4 mt-2 text-[12px] text-tx3">
+                      {selected.phone && (
+                        <span className="inline-flex items-center gap-1">
+                          <Phone className="w-3 h-3" strokeWidth={1.8} />
+                          {selected.phone}
+                        </span>
+                      )}
+                      {selected.email && (
+                        <span className="inline-flex items-center gap-1">
+                          <Mail className="w-3 h-3" strokeWidth={1.8} />
+                          {selected.email}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      onClick={() => openWhatsApp(selected.phone)}
+                      disabled={!selected.phone}
+                      className="rounded-[10px] bg-whatsapp hover:bg-whatsapp/90 text-white h-9"
+                    >
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      WhatsApp
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="rounded-[10px] border-border h-9"
+                      onClick={() => (window.location.href = "/agenda")}
+                    >
+                      <Calendar className="w-4 h-4 mr-2" />
+                      Agendar
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+                  <MiniStat label="Visitas" value={String(selected.totalVisits)} />
+                  <MiniStat
+                    label="Total gasto"
+                    value={`R$ ${selected.totalSpent.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`}
+                  />
+                  <MiniStat
+                    label="Última visita"
+                    value={
+                      selected.lastVisit
+                        ? new Date(selected.lastVisit).toLocaleDateString("pt-BR", {
+                            day: "2-digit",
+                            month: "short",
+                          })
+                        : "—"
+                    }
+                  />
+                  <MiniStat
+                    label="Ticket médio"
+                    value={
+                      selected.totalVisits > 0
+                        ? `R$ ${(selected.totalSpent / selected.totalVisits).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`
+                        : "—"
+                    }
+                  />
+                </div>
+
+                <div className="flex justify-end gap-1 mt-4 pt-4 border-t border-line2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditingClient(selected);
+                      setDialogOpen(true);
+                    }}
+                  >
+                    <Edit className="w-3.5 h-3.5 mr-1.5" /> Editar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setDeleteTarget(selected)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Remover
+                  </Button>
+                </div>
+              </div>
+
+              {/* Retention nudge */}
+              {selected.status === "inactive" && selected.lastVisit && (
+                <div className="rounded-[22px] bg-hero text-hero-foreground p-5 relative overflow-hidden">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-[10px] bg-primary/25 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[13px] font-medium">
+                        Cliente sem retorno há {selected.daysSince} dias
+                      </p>
+                      <p className="text-[12px] text-hero-foreground/70 mt-1">
+                        Envie uma mensagem personalizada pelo WhatsApp para trazer{" "}
+                        {selected.name.split(" ")[0]} de volta.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => openWhatsApp(selected.phone)}
+                      disabled={!selected.phone}
+                      className="rounded-[10px] bg-primary hover:bg-primary-hover text-primary-foreground h-9"
+                    >
+                      Enviar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* History */}
+              <div className="rounded-[22px] bg-card border border-border p-6">
+                <h3 className="font-display text-[18px] text-tx1 mb-4">Histórico de visitas</h3>
+                {selected.history.length === 0 ? (
+                  <p className="text-[13px] text-tx4 py-4">Nenhuma visita registrada ainda.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {selected.history.slice(0, 10).map((h) => {
+                      const isAi = h.source === "whatsapp";
+                      return (
+                        <li
+                          key={h.id}
+                          className="flex items-center gap-3 p-3 rounded-[12px] hover:bg-panel2 transition-colors"
+                        >
+                          <span
+                            className={cn(
+                              "w-2.5 h-2.5 rounded-full flex-shrink-0",
+                              isAi ? "bg-primary" : "bg-border",
                             )}
-                            {client.email && (
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Mail className="w-3 h-3" />
-                                {client.email}
-                              </p>
-                            )}
-                            {!client.phone && !client.email && (
-                              <p className="text-xs text-muted-foreground">—</p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-4 hidden lg:table-cell">
-                          {client.lastVisit ? (
+                          />
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <Calendar className="w-4 h-4 text-muted-foreground" />
-                              <span className="text-sm text-foreground">{formatDate(client.lastVisit)}</span>
-                              {daysSince > 45 && (
-                                <Badge variant="warning" className="text-[10px]">+{daysSince}d</Badge>
+                              <span className="font-display text-[14px] text-tx1">
+                                {new Date(h.date).toLocaleDateString("pt-BR", {
+                                  day: "2-digit",
+                                  month: "short",
+                                })}
+                              </span>
+                              <span className="text-[12px] text-tx3">
+                                {h.start_time.slice(0, 5)}
+                              </span>
+                              {isAi && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-whatsapp/15 text-whatsapp px-1.5 py-0.5 text-[10px] font-semibold">
+                                  <MessageSquare className="w-2.5 h-2.5" />
+                                  via IA
+                                </span>
                               )}
                             </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Nunca visitou</span>
-                          )}
-                        </td>
-                        <td className="p-4 hidden lg:table-cell">
-                          <span className="text-sm text-foreground">{client.totalVisits}</span>
-                        </td>
-                        <td className="p-4 hidden md:table-cell">
-                          <span className="text-sm font-medium text-foreground">
-                            R$ {client.totalSpent.toLocaleString("pt-BR")}
-                          </span>
-                        </td>
-                        <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon-sm" onClick={() => openEdit(client)} title="Editar">
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon-sm" onClick={() => setDeleteTarget(client)} title="Remover">
-                              <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
+                            <p className="text-[12px] text-tx3 truncate">
+                              {h.service || "Serviço não especificado"}
+                            </p>
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          {h.price > 0 && (
+                            <span className="font-display text-[14px] text-tx1">
+                              R$ {h.price.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </div>
-          </CardContent>
-        </Card>
-        )}
+          )}
+        </div>
       </div>
 
       <ClientDialog
@@ -385,7 +532,11 @@ export default function ClientesPage() {
             <AlertDialogAction
               onClick={() => {
                 if (deleteTarget) {
-                  deleteClient.mutate(deleteTarget.id);
+                  deleteClient.mutate(deleteTarget.id, {
+                    onSuccess: () => {
+                      if (selectedId === deleteTarget.id) setSelectedId(null);
+                    },
+                  });
                   setDeleteTarget(null);
                 }
               }}
@@ -396,5 +547,14 @@ export default function ClientesPage() {
         </AlertDialogContent>
       </AlertDialog>
     </AppLayout>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[14px] bg-panel2 p-3">
+      <p className="text-[10px] uppercase tracking-[0.12em] text-tx4">{label}</p>
+      <p className="font-display text-[20px] text-tx1 mt-1 leading-none">{value}</p>
+    </div>
   );
 }

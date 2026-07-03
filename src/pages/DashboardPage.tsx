@@ -2,19 +2,18 @@ import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Calendar,
-  DollarSign,
   Clock,
   Users,
-  Bot,
   ChevronRight,
   Sparkles,
   MessageSquare,
   Loader2,
+  ArrowUpRight,
+  Plus,
+  TrendingUp,
 } from "lucide-react";
 import { addDays, format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -35,32 +34,18 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-const statusMeta: Record<
-  string,
-  { label: string; variant: "success" | "warning" | "muted" | "info" | "destructive" }
-> = {
-  scheduled: { label: "Agendado", variant: "info" },
-  confirmed: { label: "Confirmado", variant: "success" },
-  in_progress: { label: "Em atendimento", variant: "warning" },
-  completed: { label: "Concluído", variant: "muted" },
-  cancelled: { label: "Cancelado", variant: "destructive" },
-  no_show: { label: "Não compareceu", variant: "muted" },
-};
-
 function useInactiveClientsCount(businessId?: string) {
   return useQuery({
     queryKey: ["dashboard", "inactive-clients", businessId],
     queryFn: async () => {
       if (!businessId) return 0;
       const cutoff = format(subDays(new Date(), 45), "yyyy-MM-dd");
-      // 1) Fetch all clients for this business
       const { data: clients, error: clientsErr } = await supabase
         .from("clients")
         .select("id")
         .eq("business_id", businessId);
       if (clientsErr) throw clientsErr;
       if (!clients || clients.length === 0) return 0;
-      // 2) Fetch client_ids that have appointments in the last 45 days
       const { data: recentApts, error: aptsErr } = await supabase
         .from("appointments")
         .select("client_id")
@@ -75,6 +60,74 @@ function useInactiveClientsCount(businessId?: string) {
   });
 }
 
+function useNewClientsWeek(businessId?: string) {
+  return useQuery({
+    queryKey: ["dashboard", "new-clients-week", businessId],
+    queryFn: async () => {
+      if (!businessId) return 0;
+      const from = subDays(new Date(), 7).toISOString();
+      const { count } = await supabase
+        .from("clients")
+        .select("id", { count: "exact", head: true })
+        .eq("business_id", businessId)
+        .gte("created_at", from);
+      return count ?? 0;
+    },
+    enabled: !!businessId,
+  });
+}
+
+function Ring({ value }: { value: number }) {
+  const size = 128;
+  const stroke = 10;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (value / 100) * c;
+  return (
+    <svg width={size} height={size} className="-rotate-90">
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        stroke="hsl(var(--line2))"
+        strokeWidth={stroke}
+        fill="none"
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        stroke="hsl(var(--primary))"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={c}
+        strokeDashoffset={offset}
+        fill="none"
+        className="transition-all duration-700"
+      />
+    </svg>
+  );
+}
+
+function Spark() {
+  // Discreet SVG sparkline
+  const points = [8, 12, 10, 15, 13, 20, 18, 24, 22, 28, 26, 32];
+  const max = Math.max(...points);
+  const w = 140, h = 40;
+  const path = points
+    .map((p, i) => {
+      const x = (i / (points.length - 1)) * w;
+      const y = h - (p / max) * h;
+      return `${i === 0 ? "M" : "L"}${x},${y}`;
+    })
+    .join(" ");
+  return (
+    <svg width={w} height={h} className="opacity-90">
+      <path d={path} stroke="hsl(var(--primary))" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate();
   const today = useMemo(() => new Date(), []);
@@ -85,6 +138,7 @@ export default function DashboardPage() {
   const { appointments: todayApts, isLoading: todayLoading } = useAppointments(today);
   const { appointments: tomorrowApts } = useAppointments(tomorrow);
   const { data: inactiveCount = 0 } = useInactiveClientsCount(business?.id);
+  const { data: newClientsWeek = 0 } = useNewClientsWeek(business?.id);
 
   const currentDateLabel = useMemo(() => {
     const s = format(today, "EEEE, d 'de' MMMM", { locale: ptBR });
@@ -99,61 +153,33 @@ export default function DashboardPage() {
     () => activeToday.reduce((sum, a) => sum + Number(a.price || 0), 0),
     [activeToday],
   );
+  const avgTicket = activeToday.length > 0 ? revenueToday / activeToday.length : 0;
 
-  const hourToday = useMemo(
-    () => getHourForDate(businessHours, today),
-    [businessHours, today],
-  );
-  const hourTomorrow = useMemo(
-    () => getHourForDate(businessHours, tomorrow),
-    [businessHours, tomorrow],
-  );
-
-  const slotsToday = useMemo(
-    () => countFreeSlots(hourToday, todayApts, today),
-    [hourToday, todayApts, today],
-  );
-  const occupancy = useMemo(
-    () => occupancyRate(hourToday, todayApts, today),
-    [hourToday, todayApts, today],
-  );
+  const hourToday = useMemo(() => getHourForDate(businessHours, today), [businessHours, today]);
+  const hourTomorrow = useMemo(() => getHourForDate(businessHours, tomorrow), [businessHours, tomorrow]);
+  const slotsToday = useMemo(() => countFreeSlots(hourToday, todayApts, today), [hourToday, todayApts, today]);
+  const occupancy = useMemo(() => occupancyRate(hourToday, todayApts, today), [hourToday, todayApts, today]);
   const slotsTomorrow = useMemo(
     () => countFreeSlots(hourTomorrow, tomorrowApts, tomorrow),
     [hourTomorrow, tomorrowApts, tomorrow],
   );
 
-  const insights = useMemo(() => {
-    const list: { id: string; type: "opportunity" | "alert" | "suggestion"; message: string; icon: typeof Clock }[] = [];
-    if (hourTomorrow?.is_open) {
-      list.push({
-        id: "tomorrow-slots",
-        type: "opportunity",
-        message: `Amanhã há ${slotsTomorrow.free} horário(s) livre(s) entre ${hourTomorrow.open_time.slice(0, 5)} e ${hourTomorrow.close_time.slice(0, 5)}.`,
-        icon: Clock,
-      });
-    } else {
-      list.push({
-        id: "tomorrow-closed",
-        type: "suggestion",
-        message: "Amanhã o estabelecimento está fechado. Que tal reabrir para captar demanda?",
-        icon: Clock,
-      });
+  const monthlyGoal = 30000;
+  const goalProgress = Math.min(100, Math.round((revenueToday / monthlyGoal) * 100 * 30));
+
+  const insight = useMemo(() => {
+    if (hourTomorrow?.is_open && slotsTomorrow.free > 0) {
+      return `Amanhã você tem ${slotsTomorrow.free} horários livres. Que tal disparar uma campanha de reengajamento para os ${inactiveCount} clientes inativos?`;
     }
-    list.push({
-      id: "inactive-clients",
-      type: inactiveCount > 0 ? "alert" : "opportunity",
-      message:
-        inactiveCount > 0
-          ? `${inactiveCount} cliente(s) sem retorno nos últimos 45 dias — bom momento para reengajar.`
-          : "Nenhum cliente inativo há mais de 45 dias. Excelente!",
-      icon: Users,
-    });
-    return list;
+    if (inactiveCount > 0) {
+      return `${inactiveCount} clientes não retornam há mais de 45 dias — um bom momento para acionar o agente de IA.`;
+    }
+    return "Sua base de clientes está em dia. Aproveite para revisar preços e serviços.";
   }, [hourTomorrow, slotsTomorrow.free, inactiveCount]);
 
   if (businessLoading) {
     return (
-      <AppLayout title="Dashboard" subtitle={currentDateLabel}>
+      <AppLayout title="Painel" subtitle={currentDateLabel}>
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
@@ -163,7 +189,7 @@ export default function DashboardPage() {
 
   if (!business) {
     return (
-      <AppLayout title="Dashboard" subtitle={currentDateLabel}>
+      <AppLayout title="Painel" subtitle={currentDateLabel}>
         <CreateBusinessDialog
           open
           onSubmit={(data) =>
@@ -176,225 +202,253 @@ export default function DashboardPage() {
   }
 
   return (
-    <AppLayout title="Dashboard" subtitle={currentDateLabel}>
-      <div className="space-y-6 animate-fade-in">
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card variant="elevated" className="group hover:border-primary/20 transition-colors">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Atendimentos hoje</p>
-                  <p className="text-3xl font-bold text-foreground mt-1">{activeToday.length}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {todayApts.length - activeToday.length} cancelado(s)
-                  </p>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <Calendar className="w-6 h-6 text-primary" />
-                </div>
+    <AppLayout title="Painel" subtitle={currentDateLabel}>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 animate-fade-in">
+        {/* Hero — revenue */}
+        <div className="lg:col-span-2 rounded-[22px] bg-hero p-8 relative overflow-hidden">
+          <div className="absolute -bottom-6 -right-4 opacity-70">
+            <Spark />
+          </div>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-hero-foreground/60">
+                Faturamento de hoje
+              </p>
+              <div className="flex items-baseline gap-3 mt-3">
+                <span className="font-display text-[58px] leading-none text-hero-foreground">
+                  R$ {revenueToday.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-success/15 text-success px-2 py-0.5 text-[11px] font-medium">
+                  <TrendingUp className="w-3 h-3" />
+                  {activeToday.length} atend.
+                </span>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card variant="elevated" className="group hover:border-success/20 transition-colors">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Faturamento estimado</p>
-                  <p className="text-3xl font-bold text-foreground mt-1">
-                    R$ {revenueToday.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">Soma dos agendamentos de hoje</p>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
-                  <DollarSign className="w-6 h-6 text-success" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card variant="elevated" className="group hover:border-warning/20 transition-colors">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Horários livres</p>
-                  <p className="text-3xl font-bold text-foreground mt-1">{slotsToday.free}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {hourToday?.is_open
-                      ? `De ${slotsToday.total} disponíveis`
-                      : "Fechado hoje"}
-                  </p>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-warning" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card variant="elevated" className="group hover:border-info/20 transition-colors">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Taxa de ocupação</p>
-                  <p className="text-3xl font-bold text-foreground mt-1">{occupancy}%</p>
-                  <p className="text-xs text-muted-foreground mt-1">Do horário disponível hoje</p>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-info/10 flex items-center justify-center">
-                  <Users className="w-6 h-6 text-info" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Today's Appointments */}
-          <div className="lg:col-span-2">
-            <Card variant="elevated">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-primary" />
-                  Agenda de hoje
-                </CardTitle>
-                <Button variant="ghost" size="sm" className="text-primary" asChild>
-                  <Link to="/agenda">
-                    Ver completa
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </Link>
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {todayLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                  </div>
-                ) : todayApts.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Calendar className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">Nenhum agendamento para hoje.</p>
-                    <Button variant="outline" size="sm" className="mt-3" asChild>
-                      <Link to="/agenda">Criar agendamento</Link>
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {todayApts.map((apt, index) => {
-                      const meta = statusMeta[apt.status];
-                      return (
-                        <div
-                          key={apt.id}
-                          onClick={() => navigate("/agenda")}
-                          className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer animate-slide-up"
-                          style={{ animationDelay: `${index * 40}ms` }}
-                        >
-                          <div className="text-center min-w-[60px]">
-                            <p className="text-lg font-semibold text-foreground">
-                              {apt.start_time.slice(0, 5)}
-                            </p>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-foreground truncate">
-                                {apt.client?.name || "Sem cliente"}
-                              </p>
-                              {apt.source === "whatsapp" && (
-                                <TooltipProvider delayDuration={200}>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 text-primary px-1.5 py-0.5 text-[10px] font-semibold">
-                                        <MessageSquare className="h-2.5 w-2.5" />
-                                        IA
-                                      </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      Agendado pelo agente de IA no WhatsApp
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
-                            </div>
-                            <p className="text-sm text-muted-foreground truncate">
-                              {apt.service?.name || "—"}
-                              {apt.professional?.name && ` • ${apt.professional.name}`}
-                            </p>
-                          </div>
-                          <Badge variant={meta.variant}>{meta.label}</Badge>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              <p className="text-[13px] text-hero-foreground/60 mt-3">
+                Soma dos agendamentos ativos de hoje
+              </p>
+            </div>
           </div>
 
-          {/* AI Insights */}
-          <div className="space-y-4">
-            <Card variant="gradient" className="border-primary/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-primary-foreground" />
-                  </div>
-                  <span>Insights da IA</span>
-                  <Sparkles className="w-4 h-4 text-primary animate-pulse-soft" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {insights.map((insight, index) => (
-                  <div
-                    key={insight.id}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-background/80 animate-slide-up"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        insight.type === "opportunity"
-                          ? "bg-success/10 text-success"
-                          : insight.type === "alert"
-                          ? "bg-warning/10 text-warning"
-                          : "bg-info/10 text-info"
-                      }`}
-                    >
-                      <insight.icon className="w-4 h-4" />
-                    </div>
-                    <p className="text-sm text-foreground leading-relaxed">{insight.message}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+          <div className="mt-8">
+            <div className="flex items-center justify-between text-[11px] text-hero-foreground/60 mb-2">
+              <span>Meta mensal projetada</span>
+              <span className="text-hero-foreground/80">{goalProgress}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-hero-foreground/10 overflow-hidden">
+              <div
+                className="h-full bg-primary rounded-full transition-all duration-700"
+                style={{ width: `${goalProgress}%` }}
+              />
+            </div>
+          </div>
+        </div>
 
-            {/* Quick Actions */}
-            <Card variant="elevated">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Ações Rápidas</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link to="/agenda">
-                    <Calendar className="w-4 h-4 mr-2" />
-                    Novo Agendamento
-                  </Link>
-                </Button>
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link to="/clientes">
-                    <Users className="w-4 h-4 mr-2" />
-                    Cadastrar Cliente
-                  </Link>
-                </Button>
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link to="/marketing">
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Enviar Campanha
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
+        {/* Ring occupancy */}
+        <div className="rounded-[22px] bg-card border border-border p-6 flex flex-col items-center justify-center">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-tx4 self-start">
+            Ocupação de hoje
+          </p>
+          <div className="relative mt-3">
+            <Ring value={occupancy} />
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="font-display text-[28px] text-tx1 leading-none">{occupancy}%</span>
+              <span className="text-[10px] text-tx4 mt-1">
+                {slotsToday.free} livres
+              </span>
+            </div>
+          </div>
+          {!hourToday?.is_open && (
+            <p className="text-[11px] text-tx4 mt-3">Estabelecimento fechado hoje</p>
+          )}
+        </div>
+
+        {/* KPI trio */}
+        <KpiCard
+          label="Agendamentos"
+          value={activeToday.length.toString()}
+          delta={`${todayApts.length - activeToday.length} cancel.`}
+          positive={activeToday.length > 0}
+        />
+        <KpiCard
+          label="Ticket médio"
+          value={`R$ ${avgTicket.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`}
+          delta="hoje"
+          positive
+        />
+        <KpiCard
+          label="Novos clientes"
+          value={newClientsWeek.toString()}
+          delta="últimos 7 dias"
+          positive={newClientsWeek > 0}
+        />
+
+        {/* Agenda de hoje */}
+        <div className="lg:col-span-2 rounded-[22px] bg-card border border-border p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="font-display text-[20px] text-tx1">Agenda de Hoje</h2>
+              <p className="text-[12px] text-tx4 mt-0.5">Próximos atendimentos</p>
+            </div>
+            <Button variant="ghost" size="sm" className="text-tx2 hover:text-tx1" asChild>
+              <Link to="/agenda">
+                Ver agenda <ChevronRight className="w-4 h-4 ml-1" />
+              </Link>
+            </Button>
+          </div>
+
+          {todayLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            </div>
+          ) : todayApts.length === 0 ? (
+            <div className="text-center py-10 border border-dashed border-border rounded-[16px]">
+              <Calendar className="w-8 h-8 text-tx4 mx-auto mb-2" strokeWidth={1.5} />
+              <p className="text-sm text-tx3">Nenhum agendamento para hoje</p>
+              <Button variant="outline" size="sm" className="mt-3 rounded-[10px]" asChild>
+                <Link to="/agenda">
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Criar
+                </Link>
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {todayApts.slice(0, 6).map((apt) => {
+                const isAi = apt.source === "whatsapp";
+                return (
+                  <button
+                    key={apt.id}
+                    onClick={() => navigate("/agenda")}
+                    className="w-full flex items-center gap-4 p-3 rounded-[14px] hover:bg-panel2 transition-colors text-left"
+                  >
+                    <div className="font-display text-[18px] text-tx1 min-w-[60px]">
+                      {apt.start_time.slice(0, 5)}
+                    </div>
+                    <div
+                      className="w-[3px] h-10 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: isAi ? "hsl(var(--primary))" : "hsl(var(--border))" }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-[14px] font-medium text-tx1 truncate">
+                          {apt.client?.name || "Sem cliente"}
+                        </p>
+                        {isAi && (
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex items-center gap-1 rounded-full bg-whatsapp/15 text-whatsapp px-1.5 py-0.5 text-[10px] font-semibold">
+                                  <MessageSquare className="w-2.5 h-2.5" />
+                                  IA
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>Agendado pelo agente de IA no WhatsApp</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                      <p className="text-[12px] text-tx3 truncate mt-0.5">
+                        {apt.service?.name || "—"}
+                        {apt.professional?.name && ` • ${apt.professional.name}`}
+                      </p>
+                    </div>
+                    <ArrowUpRight className="w-4 h-4 text-tx4" strokeWidth={1.8} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* AI Insights */}
+        <div className="rounded-[22px] hero-glow p-6 text-hero-foreground relative overflow-hidden">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-[10px] bg-primary/25 flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-primary" />
+            </div>
+            <span className="font-medium text-[14px]">Insight da IA</span>
+            <span className="ml-auto flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] text-hero-foreground/70">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-70" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
+              </span>
+              Ao vivo
+            </span>
+          </div>
+
+          <p className="text-[14px] leading-relaxed text-hero-foreground/90 mb-6">
+            {insight}
+          </p>
+
+          <div className="flex flex-col gap-2">
+            <Button
+              className="rounded-[12px] bg-primary hover:bg-primary-hover text-primary-foreground h-10 font-medium"
+              asChild
+            >
+              <Link to="/marketing">
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Enviar campanha
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              className="rounded-[12px] text-hero-foreground/80 hover:bg-hero-foreground/10 hover:text-hero-foreground h-10"
+              asChild
+            >
+              <Link to="/agentes">
+                <Sparkles className="w-4 h-4 mr-2" />
+                Ajustar agente
+              </Link>
+            </Button>
+          </div>
+
+          <div className="mt-6 pt-5 border-t border-hero-foreground/10 grid grid-cols-2 gap-3 text-[11px] text-hero-foreground/60">
+            <div>
+              <div className="font-display text-[18px] text-hero-foreground">
+                {inactiveCount}
+              </div>
+              inativos 45d+
+            </div>
+            <div>
+              <Clock className="w-3 h-3 inline mr-1" />
+              <span className="font-display text-[18px] text-hero-foreground">
+                {slotsToday.free}
+              </span>
+              <div>slots livres hoje</div>
+            </div>
           </div>
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  delta,
+  positive,
+}: {
+  label: string;
+  value: string;
+  delta: string;
+  positive: boolean;
+}) {
+  return (
+    <div className="rounded-[22px] bg-card border border-border p-6">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] uppercase tracking-[0.14em] text-tx4">{label}</p>
+        <span
+          className={
+            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium " +
+            (positive
+              ? "bg-success/12 text-success"
+              : "bg-destructive/12 text-destructive")
+          }
+        >
+          {delta}
+        </span>
+      </div>
+      <div className="font-display text-[38px] text-tx1 mt-4 leading-none">{value}</div>
+    </div>
   );
 }
