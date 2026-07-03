@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
         "X-Admin-Key": adminKey,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ agent_active: !!agent_active }),
+      body: JSON.stringify({ is_active: !!agent_active }),
     });
     const text = await gwRes.text();
     let payload: unknown;
