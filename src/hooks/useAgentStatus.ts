@@ -2,17 +2,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-const GATEWAY = "https://services.aurabr.app";
-
-async function authHeaders() {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
 export function useAgentStatus(businessId?: string) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -21,13 +10,11 @@ export function useAgentStatus(businessId?: string) {
     queryKey: ["agent-status", businessId],
     queryFn: async () => {
       if (!businessId) return null;
-      const res = await fetch(
-        `${GATEWAY}/admin/businesses/${businessId}/agent-active`,
-        { headers: await authHeaders() },
-      );
-      if (!res.ok) throw new Error("Falha ao carregar status do agente");
-      const json = await res.json();
-      return { active: !!(json?.agent_active ?? json?.active) };
+      const { data, error } = await supabase.functions.invoke("agent-status", {
+        body: { action: "get", business_id: businessId },
+      });
+      if (error) throw error;
+      return { active: !!(data?.agent_active ?? data?.active) };
     },
     enabled: !!businessId,
     staleTime: 30_000,
@@ -36,15 +23,10 @@ export function useAgentStatus(businessId?: string) {
   const mutation = useMutation({
     mutationFn: async (active: boolean) => {
       if (!businessId) throw new Error("Sem estabelecimento");
-      const res = await fetch(
-        `${GATEWAY}/admin/businesses/${businessId}/agent-active`,
-        {
-          method: "PATCH",
-          headers: await authHeaders(),
-          body: JSON.stringify({ agent_active: active }),
-        },
-      );
-      if (!res.ok) throw new Error("Falha ao atualizar status");
+      const { error } = await supabase.functions.invoke("agent-status", {
+        body: { action: "toggle", business_id: businessId, agent_active: active },
+      });
+      if (error) throw error;
       return active;
     },
     onSuccess: (active) => {
