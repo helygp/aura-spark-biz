@@ -61,7 +61,12 @@ Deno.serve(async (req) => {
 
   const business_id = String(body.business_id ?? "");
   const client_name = String(body.client_name ?? "").trim();
-  const client_phone = String(body.client_phone ?? "").trim();
+  const client_phone_raw = String(body.client_phone ?? "").trim();
+  // Strip WhatsApp ID suffixes like @lid, @s.whatsapp.net, @c.us
+  const client_phone = client_phone_raw.split("@")[0].trim();
+  if (client_phone !== client_phone_raw) {
+    console.log("[wa-appt] phone_sanitized", { raw: client_phone_raw, clean: client_phone });
+  }
   const service_id = String(body.service_id ?? "");
   const date = String(body.date ?? "");
   const start_time_raw = String(body.start_time ?? "");
@@ -97,6 +102,11 @@ Deno.serve(async (req) => {
   if (serviceErr) return json({ error: "db_error", message: serviceErr.message }, 500);
   if (!service) return json({ error: "service_not_found", message: "Serviço não encontrado" }, 404);
   if (service.business_id !== business_id) {
+    console.warn("[wa-appt] service_business_mismatch", {
+      received_business_id: business_id,
+      service_business_id: service.business_id,
+      service_id,
+    });
     return json({ error: "service_business_mismatch", message: "Serviço não pertence a esse negócio" }, 400);
   }
 
