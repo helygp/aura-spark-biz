@@ -72,18 +72,31 @@ Deno.serve(async (req) => {
     if (!adminKey) return json({ error: "Gateway key not configured" }, 500);
 
     const url = `${GATEWAY}/admin/businesses/${business_id}/agent-active`;
-    const gwRes =
-      action === "get"
-        ? await fetch(url, { headers: { "X-Admin-Key": adminKey } })
-        : await fetch(url, {
-            method: "PATCH",
-            headers: {
-              "X-Admin-Key": adminKey,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ agent_active: !!agent_active }),
-          });
+    if (action === "get") {
+      // Gateway has no GET on agent-active; fetch listing and filter.
+      const listRes = await fetch(`${GATEWAY}/admin/businesses`, {
+        headers: { "X-Admin-Key": adminKey },
+      });
+      if (!listRes.ok) {
+        return json({ error: "Gateway error", status: listRes.status }, 502);
+      }
+      const list = (await listRes.json()) as Array<{
+        id: string;
+        agent_active?: boolean;
+      }>;
+      const found = list.find((b) => b.id === business_id);
+      if (!found) return json({ agent_active: false, found: false });
+      return json({ agent_active: !!found.agent_active, found: true });
+    }
 
+    const gwRes = await fetch(url, {
+      method: "POST",
+      headers: {
+        "X-Admin-Key": adminKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ agent_active: !!agent_active }),
+    });
     const text = await gwRes.text();
     let payload: unknown;
     try {
@@ -91,7 +104,6 @@ Deno.serve(async (req) => {
     } catch {
       payload = { raw: text };
     }
-
     return new Response(JSON.stringify(payload), {
       status: gwRes.status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
