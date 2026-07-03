@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -151,16 +150,16 @@ export default function AgendaPage() {
         {/* Controls */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon-sm" onClick={() => navigate("prev")}>
+            <Button variant="outline" size="icon-sm" onClick={() => navigate("prev")} className="rounded-[10px] border-border bg-card">
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="icon-sm" onClick={() => navigate("next")}>
+            <Button variant="outline" size="icon-sm" onClick={() => navigate("next")} className="rounded-[10px] border-border bg-card">
               <ChevronRight className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())}>
+            <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())} className="rounded-[10px]">
               Hoje
             </Button>
-            <h2 className="text-lg font-semibold capitalize ml-2">
+            <h2 className="font-display text-[20px] capitalize ml-2 text-tx1">
               {view === "day"
                 ? format(currentDate, "EEEE, d 'de' MMMM", { locale: ptBR })
                 : `${format(weekStart, "d 'de' MMM", { locale: ptBR })} — ${format(weekEnd, "d 'de' MMM", { locale: ptBR })}`}
@@ -168,13 +167,13 @@ export default function AgendaPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex rounded-lg border border-input overflow-hidden">
+            <div className="flex rounded-full bg-card border border-border p-1">
               <button
                 className={cn(
-                  "px-3 py-1.5 text-sm font-medium transition-colors",
+                  "px-4 py-1.5 text-[13px] font-medium rounded-full transition-colors",
                   view === "day"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-background text-muted-foreground hover:text-foreground",
+                    ? "bg-tx1 text-background"
+                    : "text-tx3 hover:text-tx1",
                 )}
                 onClick={() => setView("day")}
               >
@@ -182,36 +181,35 @@ export default function AgendaPage() {
               </button>
               <button
                 className={cn(
-                  "px-3 py-1.5 text-sm font-medium transition-colors",
+                  "px-4 py-1.5 text-[13px] font-medium rounded-full transition-colors",
                   view === "week"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-background text-muted-foreground hover:text-foreground",
+                    ? "bg-tx1 text-background"
+                    : "text-tx3 hover:text-tx1",
                 )}
                 onClick={() => setView("week")}
               >
                 Semana
               </button>
             </div>
-            <Button variant="gradient" onClick={() => openCreate()}>
+            <Button onClick={() => openCreate()} className="rounded-[12px] bg-tx1 hover:bg-tx1/90 text-background h-10">
               <Plus className="w-4 h-4 mr-2" />
-              Novo Agendamento
+              Novo agendamento
             </Button>
           </div>
         </div>
 
-        {/* Professional Filter */}
-        <Card variant="elevated">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3 flex-wrap">
-              <Filter className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Profissional:</span>
+        {/* Filters + legend */}
+        <div className="rounded-[18px] bg-card border border-border p-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Filter className="w-4 h-4 text-tx3" strokeWidth={1.8} />
+            <span className="text-[12px] text-tx3">Profissional:</span>
               <div className="flex gap-2 flex-wrap">
                 <button
                   className={cn(
-                    "px-3 py-1 rounded-full text-sm font-medium transition-all",
+                    "px-3 py-1 rounded-full text-[12px] font-medium transition-all",
                     selectedProfessional === null
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80",
+                      ? "bg-tx1 text-background"
+                      : "bg-panel2 text-tx3 hover:text-tx1",
                   )}
                   onClick={() => setSelectedProfessional(null)}
                 >
@@ -223,10 +221,10 @@ export default function AgendaPage() {
                     <button
                       key={prof.id}
                       className={cn(
-                        "px-3 py-1 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+                        "px-3 py-1 rounded-full text-[12px] font-medium transition-all flex items-center gap-2",
                         selectedProfessional === prof.id
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80",
+                          ? "bg-tx1 text-background"
+                          : "bg-panel2 text-tx3 hover:text-tx1",
                       )}
                       onClick={() => setSelectedProfessional(prof.id)}
                     >
@@ -238,39 +236,48 @@ export default function AgendaPage() {
                     </button>
                   ))}
                 {professionals.length === 0 && (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-tx4">
                     Nenhum profissional cadastrado ainda.
                   </span>
                 )}
               </div>
+
+            <div className="ml-auto flex items-center gap-4 text-[11px] text-tx3">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-primary" />
+                Agendado por IA
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-border" />
+                Presencial / telefone
+              </span>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Day View */}
         {view === "day" && (
-          <Card variant="elevated">
-            <CardContent className="p-0">
+          <div className="rounded-[20px] bg-card border border-border overflow-hidden">
               {dayLoading ? (
                 <div className="flex items-center justify-center h-64">
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
               ) : !hourForDay?.is_open ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <CalendarIcon className="w-10 h-10 text-muted-foreground mb-3" />
-                  <p className="text-foreground font-medium">Estabelecimento fechado nesse dia</p>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <CalendarIcon className="w-10 h-10 text-tx4 mb-3" strokeWidth={1.5} />
+                  <p className="text-tx1 font-medium">Estabelecimento fechado nesse dia</p>
+                  <p className="text-sm text-tx3 mt-1">
                     Ajuste em Configurações → Horário de Funcionamento.
                   </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-[80px_1fr]">
                   {/* Time labels */}
-                  <div className="border-r border-border">
+                  <div className="border-r border-border bg-panel2/40">
                     {daySlots.map((time) => (
                       <div
                         key={time}
-                        className="flex items-start justify-center pt-1 text-xs text-muted-foreground font-medium"
+                        className="flex items-start justify-center pt-1 font-display text-[12.5px] text-tx4"
                         style={{ height: SLOT_HEIGHT }}
                       >
                         {time}
@@ -285,7 +292,7 @@ export default function AgendaPage() {
                         key={time}
                         onClick={() => openCreate(time)}
                         className={cn(
-                          "absolute left-0 right-0 border-t border-border hover:bg-muted/40 cursor-pointer transition-colors",
+                          "absolute left-0 right-0 border-t border-line2 hover:bg-panel2 cursor-pointer transition-colors",
                           idx === 0 && "border-t-0",
                         )}
                         style={{ top: idx * SLOT_HEIGHT, height: SLOT_HEIGHT }}
@@ -322,20 +329,18 @@ export default function AgendaPage() {
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </div>
         )}
 
         {/* Week View */}
         {view === "week" && (
-          <Card variant="elevated">
-            <CardContent className="p-0">
+          <div className="rounded-[20px] bg-card border border-border overflow-hidden">
               {weekLoading ? (
                 <div className="flex items-center justify-center h-64">
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
               ) : (
-                <div className="grid grid-cols-7 divide-x divide-border">
+                <div className="grid grid-cols-7 divide-x divide-line2">
                   {Array.from({ length: 7 }).map((_, i) => {
                     const date = addDays(weekStart, i);
                     const isToday = isSameDay(date, new Date());
@@ -349,17 +354,17 @@ export default function AgendaPage() {
                             setView("day");
                           }}
                           className={cn(
-                            "w-full flex flex-col items-center justify-center py-3 border-b border-border transition-colors hover:bg-muted/40",
-                            isToday && "bg-primary/5",
+                            "w-full flex flex-col items-center justify-center py-3 border-b border-line2 transition-colors hover:bg-panel2",
+                            isToday && "bg-primary/8",
                           )}
                         >
-                          <span className="text-xs text-muted-foreground uppercase">
+                          <span className="text-[10px] tracking-[0.12em] text-tx4 uppercase">
                             {WEEKDAY_LABELS[date.getDay()]}
                           </span>
                           <span
                             className={cn(
-                              "text-lg font-semibold",
-                              isToday ? "text-primary" : "text-foreground",
+                              "font-display text-[20px] mt-0.5",
+                              isToday ? "text-primary" : "text-tx1",
                             )}
                           >
                             {format(date, "d")}
@@ -372,7 +377,7 @@ export default function AgendaPage() {
                                 setCurrentDate(date);
                                 openCreate();
                               }}
-                              className="w-full text-xs text-muted-foreground py-6 border border-dashed border-border rounded-md hover:bg-muted/40 transition-colors"
+                              className="w-full text-[11px] text-tx4 py-6 border border-dashed border-border rounded-[10px] hover:bg-panel2 transition-colors"
                             >
                               + agendar
                             </button>
@@ -381,18 +386,26 @@ export default function AgendaPage() {
                               <button
                                 key={apt.id}
                                 onClick={() => openEdit(apt)}
-                                className="w-full text-left rounded-md border-l-4 bg-card px-2 py-1.5 hover:bg-muted/40 transition-colors"
+                                className={cn(
+                                  "w-full text-left rounded-[10px] border-l-[3px] px-2 py-1.5 transition-colors",
+                                  apt.source === "whatsapp"
+                                    ? "bg-primary/10 hover:bg-primary/15"
+                                    : "bg-panel2 hover:bg-line2",
+                                )}
                                 style={{
-                                  borderLeftColor: apt.professional?.color || "#8B5CF6",
+                                  borderLeftColor:
+                                    apt.source === "whatsapp"
+                                      ? "hsl(var(--primary))"
+                                      : apt.professional?.color || "hsl(var(--border))",
                                 }}
                               >
-                                <div className="flex items-center gap-1.5 text-xs font-semibold">
+                                <div className="flex items-center gap-1.5 font-display text-[12px] text-tx1">
                                   {apt.start_time.slice(0, 5)}
                                   {apt.source === "whatsapp" && (
                                     <TooltipProvider delayDuration={200}>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/15 text-primary px-1 text-[9px]">
+                                          <span className="inline-flex items-center gap-0.5 rounded-full bg-whatsapp/15 text-whatsapp px-1 text-[9px]">
                                             <Sparkles className="h-2.5 w-2.5" />
                                             IA
                                           </span>
@@ -404,10 +417,10 @@ export default function AgendaPage() {
                                     </TooltipProvider>
                                   )}
                                 </div>
-                                <div className="text-xs truncate text-foreground">
+                                <div className="text-[12px] truncate text-tx1">
                                   {apt.client?.name || "Sem cliente"}
                                 </div>
-                                <div className="text-[10px] truncate text-muted-foreground">
+                                <div className="text-[10px] truncate text-tx4">
                                   {apt.service?.name || "—"}
                                 </div>
                               </button>
@@ -419,8 +432,7 @@ export default function AgendaPage() {
                   })}
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </div>
         )}
 
         {/* Legend */}
