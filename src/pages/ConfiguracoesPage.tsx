@@ -85,9 +85,15 @@ export default function ConfiguracoesPage() {
   };
 
   const handleProSubmit = (data: ProfessionalFormValues) => {
+    const payload = {
+      name: data.name ?? "",
+      role: data.role ?? null,
+      color: data.color ?? "#8B5CF6",
+      is_active: data.is_active ?? true,
+    };
     if (editingPro) {
       updateProfessional.mutate(
-        { id: editingPro.id, ...data },
+        { id: editingPro.id, ...payload },
         {
           onSuccess: () => {
             setDialogOpen(false);
@@ -96,7 +102,7 @@ export default function ConfiguracoesPage() {
         }
       );
     } else {
-      createProfessional.mutate(data, {
+      createProfessional.mutate(payload, {
         onSuccess: () => setDialogOpen(false),
       });
     }
