@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ const integrations = [
 ];
 
 export default function ConfiguracoesPage() {
+  const navigate = useNavigate();
   const { business, isLoading: businessLoading, updateBusiness } = useBusiness();
   const {
     professionals,
@@ -54,6 +56,7 @@ export default function ConfiguracoesPage() {
     updateProfessional,
   } = useProfessionals();
 
+  const [activeSection, setActiveSection] = useState<string>("Dados do Negócio");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
@@ -118,6 +121,9 @@ export default function ConfiguracoesPage() {
     });
   };
 
+  const comingSoonSections = ["Personalização", "Notificações", "Segurança"];
+  const activeItem = menuItems.find((i) => i.label === activeSection) ?? menuItems[0];
+
   return (
     <AppLayout title="Configurações" subtitle="Gerencie seu negócio">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-fade-in">
@@ -125,12 +131,13 @@ export default function ConfiguracoesPage() {
         <Card variant="elevated" className="lg:col-span-1 h-fit">
           <CardContent className="p-2">
             <nav className="space-y-1">
-              {menuItems.map((item, index) => (
+              {menuItems.map((item) => (
                 <button
                   key={item.label}
+                  onClick={() => setActiveSection(item.label)}
                   className={cn(
                     "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all",
-                    index === 0
+                    activeSection === item.label
                       ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
@@ -140,7 +147,7 @@ export default function ConfiguracoesPage() {
                     <p className="text-sm font-medium truncate">{item.label}</p>
                     <p className="text-xs opacity-70 truncate">{item.description}</p>
                   </div>
-                  {index === 0 && <ChevronRight className="w-4 h-4" />}
+                  {activeSection === item.label && <ChevronRight className="w-4 h-4" />}
                 </button>
               ))}
             </nav>
@@ -149,7 +156,7 @@ export default function ConfiguracoesPage() {
 
         {/* Main Content */}
         <div className="lg:col-span-3 space-y-6">
-          {/* Business Info */}
+          {activeSection === "Dados do Negócio" && (
           <Card variant="elevated">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -213,11 +220,31 @@ export default function ConfiguracoesPage() {
               )}
             </CardContent>
           </Card>
+          )}
 
-          {/* Business Hours */}
-          <BusinessHoursCard />
+          {activeSection === "Horário de Funcionamento" && <BusinessHoursCard />}
 
-          {/* Team */}
+          {activeSection === "Serviços e Preços" && (
+            <Card variant="elevated">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Scissors className="w-5 h-5 text-primary" />
+                  Serviços e Preços
+                </CardTitle>
+                <CardDescription>
+                  Gerencie serviços e preços na página Serviços.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="gradient" onClick={() => navigate("/servicos")}>
+                  Ir para Serviços
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "Equipe" && (
           <Card variant="elevated">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -298,8 +325,9 @@ export default function ConfiguracoesPage() {
               )}
             </CardContent>
           </Card>
+          )}
 
-          {/* Integrations */}
+          {activeSection === "Integrações" && (
           <Card variant="elevated">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -331,6 +359,27 @@ export default function ConfiguracoesPage() {
               </div>
             </CardContent>
           </Card>
+          )}
+
+          {comingSoonSections.includes(activeSection) && (
+            <Card variant="elevated">
+              <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <activeItem.icon className="w-5 h-5 text-primary" />
+                    {activeItem.label}
+                  </CardTitle>
+                  <CardDescription>{activeItem.description}</CardDescription>
+                </div>
+                <Badge variant="muted">Em breve</Badge>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Essa área ainda está em desenvolvimento e estará disponível em breve.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
