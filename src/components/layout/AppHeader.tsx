@@ -27,57 +27,55 @@ export function AppHeader({ title, subtitle }: AppHeaderProps) {
   };
 
   return (
-    <header className="h-16 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10 px-6 flex items-center justify-between">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">{title}</h1>
-        {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
-      </div>
-
-      <div className="flex items-center gap-4">
-        {/* Search */}
-        <div className="relative hidden md:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input 
-            placeholder="Buscar..." 
-            className="w-64 pl-9 h-9 bg-background"
-          />
+    <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border">
+      <div className="flex items-center justify-between px-[34px] py-5">
+        <div>
+          <h1 className="font-display text-[26px] leading-none text-tx1">{title}</h1>
+          {subtitle && (
+            <p className="text-[13px] text-tx3 mt-1.5">{subtitle}</p>
+          )}
         </div>
 
-        {/* Notifications */}
-        <Button variant="ghost" size="icon-sm" className="relative">
-          <Bell className="w-5 h-5 text-muted-foreground" />
-          <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-[10px]">
-            3
-          </Badge>
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="relative hidden md:block">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tx4" strokeWidth={1.8} />
+            <Input
+              placeholder="Buscar clientes, agendamentos..."
+              className="w-72 pl-9 h-10 bg-card border-border rounded-[12px] text-[13px] placeholder:text-tx4"
+            />
+          </div>
 
-        {/* User Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-3 pl-3 border-l border-border hover:opacity-80 transition-opacity cursor-pointer">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-foreground">
-                  {profile?.full_name || "Usuário"}
-                </p>
-                <p className="text-xs text-muted-foreground">Administrador</p>
-              </div>
-              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                <User className="w-5 h-5 text-primary" />
-              </div>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => navigate("/configuracoes")}>
-              <User className="w-4 h-4 mr-2" />
-              Meu perfil
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
-              <LogOut className="w-4 h-4 mr-2" />
-              Sair
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          <Button variant="ghost" size="icon-sm" className="relative h-10 w-10 rounded-[12px] bg-card border border-border hover:bg-line2">
+            <Bell className="w-4 h-4 text-tx2" strokeWidth={1.8} />
+            <Badge className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-[9px] bg-primary text-primary-foreground border-0">
+              3
+            </Badge>
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="h-10 pl-2 pr-3 flex items-center gap-2 rounded-[12px] bg-hero text-hero-foreground hover:opacity-90 transition-opacity">
+                <div className="w-7 h-7 rounded-[8px] bg-primary/20 flex items-center justify-center">
+                  <User className="w-4 h-4" strokeWidth={1.8} />
+                </div>
+                <span className="text-[13px] font-medium hidden sm:inline">
+                  {profile?.full_name?.split(" ")[0] || "Perfil"}
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => navigate("/configuracoes")}>
+                <User className="w-4 h-4 mr-2" />
+                Meu perfil
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+                <LogOut className="w-4 h-4 mr-2" />
+                Sair
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </header>
   );
