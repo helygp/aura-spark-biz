@@ -542,6 +542,21 @@ export type Database = {
         }
         Relationships: []
       }
+      wa_message_dedup: {
+        Row: {
+          created_at: string
+          dedup_key: string
+        }
+        Insert: {
+          created_at?: string
+          dedup_key: string
+        }
+        Update: {
+          created_at?: string
+          dedup_key?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
