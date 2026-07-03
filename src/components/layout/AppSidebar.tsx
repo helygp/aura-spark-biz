@@ -150,7 +150,7 @@ export function AppSidebar({ collapsed = false }: AppSidebarProps) {
             <p className="text-[11px] text-tx4 truncate">
               {profile?.full_name || "Administrador"}
             </p>
-          </divnull>
+          </div>
         )}
       </div>
     </aside>
