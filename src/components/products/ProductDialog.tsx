@@ -1,4 +1,5 @@
 import { useForm } from 'react-hook-form';
+import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -56,6 +57,18 @@ export function ProductDialog({
       is_active: product?.is_active ?? true,
     },
   });
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        name: product?.name || '',
+        description: product?.description || '',
+        price: product?.price || 0,
+        stock_quantity: product?.stock_quantity || 0,
+        is_active: product?.is_active ?? true,
+      });
+    }
+  }, [product, open]);
 
   const handleSubmit = (data: ProductFormData) => {
     onSubmit(data);

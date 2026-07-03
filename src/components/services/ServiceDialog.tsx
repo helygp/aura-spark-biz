@@ -1,4 +1,5 @@
 import { useForm } from 'react-hook-form';
+import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -56,6 +57,18 @@ export function ServiceDialog({
       is_active: service?.is_active ?? true,
     },
   });
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        name: service?.name || '',
+        description: service?.description || '',
+        duration_minutes: service?.duration_minutes || 30,
+        price: service?.price || 0,
+        is_active: service?.is_active ?? true,
+      });
+    }
+  }, [service, open]);
 
   const handleSubmit = (data: ServiceFormData) => {
     onSubmit(data);
