@@ -12,6 +12,8 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import type { TranslationKey } from "@/lib/i18n";
 import {
   Sheet,
   SheetContent,
@@ -22,35 +24,36 @@ import {
 
 type Item = {
   icon: typeof LayoutDashboard;
-  label: string;
+  labelKey: TranslationKey;
   path: string;
   badge?: boolean;
 };
 
 const primary: Item[] = [
-  { icon: LayoutDashboard, label: "Painel", path: "/dashboard" },
-  { icon: Calendar, label: "Agenda", path: "/agenda" },
-  { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
-  { icon: Users, label: "Clientes", path: "/clientes" },
+  { icon: LayoutDashboard, labelKey: "nav_dashboard", path: "/dashboard" },
+  { icon: Calendar, labelKey: "nav_agenda", path: "/agenda" },
+  { icon: BarChart3, labelKey: "nav_reports", path: "/relatorios" },
+  { icon: Users, labelKey: "nav_clients", path: "/clientes" },
 ];
 
 const moreItems: Item[] = [
-  { icon: Scissors, label: "Serviços", path: "/servicos" },
-  { icon: MessageSquare, label: "Marketing", path: "/marketing" },
-  { icon: Bot, label: "Agentes IA", path: "/agentes", badge: true },
-  { icon: Settings, label: "Configurações", path: "/configuracoes" },
+  { icon: Scissors, labelKey: "nav_services", path: "/servicos" },
+  { icon: MessageSquare, labelKey: "nav_marketing", path: "/marketing" },
+  { icon: Bot, labelKey: "nav_agents", path: "/agentes", badge: true },
+  { icon: Settings, labelKey: "nav_settings", path: "/configuracoes" },
 ];
 
 export function BottomNav() {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  const { t } = useAppSettings();
 
   const moreActive = moreItems.some((i) => pathname === i.path);
 
   return (
     <nav
       className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur border-t border-border pb-[env(safe-area-inset-bottom)]"
-      aria-label="Navegação principal"
+      aria-label={t("nav_aria")}
     >
       <ul className="flex items-stretch justify-around h-16">
         {primary.map((item) => {
@@ -68,7 +71,7 @@ export function BottomNav() {
                   className="w-[22px] h-[22px]"
                   strokeWidth={active ? 2.2 : 1.8}
                 />
-                <span className="truncate max-w-[64px]">{item.label}</span>
+                <span className="truncate max-w-[64px]">{t(item.labelKey)}</span>
               </Link>
             </li>
           );
@@ -87,7 +90,7 @@ export function BottomNav() {
                   className="w-[22px] h-[22px]"
                   strokeWidth={moreActive ? 2.2 : 1.8}
                 />
-                <span>Mais</span>
+                <span>{t("nav_more")}</span>
                 {moreItems.some((i) => i.badge) && (
                   <span className="absolute top-2 right-[calc(50%-14px)] flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-70" />
@@ -101,7 +104,7 @@ export function BottomNav() {
               className="rounded-t-2xl pb-[calc(env(safe-area-inset-bottom)+16px)]"
             >
               <SheetHeader className="text-left">
-                <SheetTitle>Mais opções</SheetTitle>
+                <SheetTitle>{t("nav_more_title")}</SheetTitle>
               </SheetHeader>
               <ul className="mt-4 space-y-1">
                 {moreItems.map((item) => {
@@ -119,7 +122,7 @@ export function BottomNav() {
                         )}
                       >
                         <item.icon className="w-5 h-5" strokeWidth={1.8} />
-                        <span className="flex-1">{item.label}</span>
+                        <span className="flex-1">{t(item.labelKey)}</span>
                         {item.badge && (
                           <span className="flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-success opacity-70" />
