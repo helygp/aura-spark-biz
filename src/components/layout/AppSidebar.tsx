@@ -13,26 +13,28 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBusiness } from "@/hooks/useBusiness";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
+import type { TranslationKey } from "@/lib/i18n";
 
-type Item = { icon: typeof LayoutDashboard; label: string; path: string; badge?: boolean };
+type Item = { icon: typeof LayoutDashboard; labelKey: TranslationKey; path: string; badge?: boolean };
 
-const groups: { title: string; items: Item[] }[] = [
+const groups: { titleKey: TranslationKey; items: Item[] }[] = [
   {
-    title: "Menu",
+    titleKey: "nav_menu",
     items: [
-      { icon: LayoutDashboard, label: "Painel", path: "/dashboard" },
-      { icon: Calendar, label: "Agenda", path: "/agenda" },
-      { icon: Users, label: "Clientes", path: "/clientes" },
-      { icon: Scissors, label: "Serviços", path: "/servicos" },
-      { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
+      { icon: LayoutDashboard, labelKey: "nav_dashboard", path: "/dashboard" },
+      { icon: Calendar, labelKey: "nav_agenda", path: "/agenda" },
+      { icon: Users, labelKey: "nav_clients", path: "/clientes" },
+      { icon: Scissors, labelKey: "nav_services", path: "/servicos" },
+      { icon: BarChart3, labelKey: "nav_reports", path: "/relatorios" },
     ],
   },
   {
-    title: "Sistema",
+    titleKey: "nav_system",
     items: [
-      { icon: MessageSquare, label: "Marketing", path: "/marketing" },
-      { icon: Bot, label: "Agentes IA", path: "/agentes", badge: true },
-      { icon: Settings, label: "Configurações", path: "/configuracoes" },
+      { icon: MessageSquare, labelKey: "nav_marketing", path: "/marketing" },
+      { icon: Bot, labelKey: "nav_agents", path: "/agentes", badge: true },
+      { icon: Settings, labelKey: "nav_settings", path: "/configuracoes" },
     ],
   },
 ];
@@ -45,6 +47,7 @@ export function AppSidebar({ collapsed = false }: AppSidebarProps) {
   const location = useLocation();
   const { profile } = useAuth();
   const { business } = useBusiness();
+  const { t } = useAppSettings();
 
   const initials = (profile?.full_name || business?.name || "AU")
     .split(" ")
@@ -80,20 +83,21 @@ export function AppSidebar({ collapsed = false }: AppSidebarProps) {
       {/* Groups */}
       <nav className="flex-1 overflow-y-auto space-y-6 w-full">
         {groups.map((g) => (
-          <div key={g.title}>
+          <div key={g.titleKey}>
             {!collapsed && (
               <div className="px-2 mb-2 text-[10px] tracking-[0.12em] uppercase text-tx4 font-medium">
-                {g.title}
+                {t(g.titleKey)}
               </div>
             )}
             <ul className={cn("space-y-1", collapsed && "flex flex-col items-center")}>
               {g.items.map((item) => {
                 const active = location.pathname === item.path;
+                const label = t(item.labelKey);
                 return (
                   <li key={item.path}>
                     <Link
                       to={item.path}
-                      title={item.label}
+                      title={label}
                       className={cn(
                         "group flex items-center rounded-[10px] text-[13.5px] font-medium transition-colors",
                         collapsed
@@ -111,7 +115,7 @@ export function AppSidebar({ collapsed = false }: AppSidebarProps) {
                         )}
                         strokeWidth={1.8}
                       />
-                      {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                      {!collapsed && <span className="flex-1 truncate">{label}</span>}
                       {!collapsed && item.badge && (
                         <span className="relative flex h-2 w-2">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-70" />
@@ -145,10 +149,10 @@ export function AppSidebar({ collapsed = false }: AppSidebarProps) {
         {!collapsed && (
           <div className="min-w-0">
             <p className="text-[13px] font-medium text-tx1 truncate">
-              {business?.name || "Meu negócio"}
+              {business?.name || t("default_business_name")}
             </p>
             <p className="text-[11px] text-tx4 truncate">
-              {profile?.full_name || "Administrador"}
+              {profile?.full_name || t("default_role")}
             </p>
           </div>
         )}
