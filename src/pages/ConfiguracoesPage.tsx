@@ -27,6 +27,9 @@ import { BusinessHoursCard } from "@/components/settings/BusinessHoursCard";
 import { useBusiness } from "@/hooks/useBusiness";
 import { useProfessionals, Professional } from "@/hooks/useProfessionals";
 import { ProfessionalDialog, ProfessionalFormValues } from "@/components/settings/ProfessionalDialog";
+import { useOwnerApiToken } from "@/hooks/useOwnerApiToken";
+import { Sparkles, Copy } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const menuItems = [
   { icon: Building2, label: "Dados do Negócio", description: "Nome, endereço, contato" },
@@ -55,6 +58,8 @@ export default function ConfiguracoesPage() {
     createProfessional,
     updateProfessional,
   } = useProfessionals();
+  const { data: apiToken, isLoading: tokenLoading } = useOwnerApiToken(business?.id);
+  const { toast } = useToast();
 
   const [activeSection, setActiveSection] = useState<string>("Dados do Negócio");
   const [name, setName] = useState("");
@@ -339,6 +344,35 @@ export default function ConfiguracoesPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+          <div className="mb-6 p-4 rounded-lg border border-border bg-muted/30">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <p className="font-medium text-foreground">Integração com Assistente de IA</p>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Token do seu negócio para conectar assistentes externos (Dify). Mantenha este token em segredo.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                readOnly
+                value={tokenLoading ? "Carregando..." : apiToken ?? ""}
+                className="font-mono text-xs"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!apiToken}
+                onClick={() => {
+                  if (!apiToken) return;
+                  navigator.clipboard.writeText(apiToken);
+                  toast({ title: "Token copiado" });
+                }}
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copiar
+              </Button>
+            </div>
+          </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {integrations.map((integration, index) => (
                   <div

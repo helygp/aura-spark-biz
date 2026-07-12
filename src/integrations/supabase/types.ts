@@ -347,6 +347,35 @@ export type Database = {
           },
         ]
       }
+      owner_api_tokens: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          token: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          token: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_api_tokens_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           business_id: string
