@@ -215,6 +215,59 @@ export type Database = {
           },
         ]
       }
+      campaigns: {
+        Row: {
+          audience_filter: Json
+          business_id: string
+          clicked_count: number
+          created_at: string
+          id: string
+          message_template: string | null
+          name: string
+          opened_count: number
+          sent_count: number
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          audience_filter?: Json
+          business_id: string
+          clicked_count?: number
+          created_at?: string
+          id?: string
+          message_template?: string | null
+          name: string
+          opened_count?: number
+          sent_count?: number
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          audience_filter?: Json
+          business_id?: string
+          clicked_count?: number
+          created_at?: string
+          id?: string
+          message_template?: string | null
+          name?: string
+          opened_count?: number
+          sent_count?: number
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           business_id: string
@@ -249,6 +302,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "clients_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_templates: {
+        Row: {
+          business_id: string
+          category: string
+          content: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          category?: string
+          content?: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          category?: string
+          content?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_templates_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -607,6 +698,54 @@ export type Database = {
           dedup_key?: string
         }
         Relationships: []
+      }
+      waitlist: {
+        Row: {
+          business_id: string
+          client_id: string | null
+          created_at: string
+          id: string
+          name: string
+          phone: string | null
+          preferred_day: string | null
+          preferred_time: string | null
+        }
+        Insert: {
+          business_id: string
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          phone?: string | null
+          preferred_day?: string | null
+          preferred_time?: string | null
+        }
+        Update: {
+          business_id?: string
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          preferred_day?: string | null
+          preferred_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waitlist_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
