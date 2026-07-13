@@ -3,6 +3,8 @@ import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
 import { BottomNav } from "./BottomNav";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { ChatPanelProvider } from "@/contexts/ChatPanelContext";
+import { useAppointmentTriggers } from "@/hooks/useAppointmentTriggers";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { formatT, TranslationKey } from "@/lib/i18n";
 
@@ -56,6 +58,34 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
     }
   }
 
+  return (
+    <ChatPanelProvider>
+      <AppLayoutInner
+        sidebarCollapsed={sidebarCollapsed}
+        setSidebarCollapsed={setSidebarCollapsed}
+        translatedTitle={translatedTitle}
+        translatedSubtitle={translatedSubtitle}
+      >
+        {children}
+      </AppLayoutInner>
+    </ChatPanelProvider>
+  );
+}
+
+function AppLayoutInner({
+  children,
+  sidebarCollapsed,
+  setSidebarCollapsed,
+  translatedTitle,
+  translatedSubtitle,
+}: {
+  children: ReactNode;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (fn: (v: boolean) => boolean) => void;
+  translatedTitle: string;
+  translatedSubtitle?: string;
+}) {
+  useAppointmentTriggers();
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar collapsed={sidebarCollapsed} />
