@@ -5,25 +5,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-}
-
-const CONV_KEY = "aura_dify_conversation_id";
+import { useChatPanel } from "@/contexts/ChatPanelContext";
 
 export function ChatPanel() {
   const { language } = useAppSettings();
-  const [open, setOpen] = useState(false);
+  const {
+    open, setOpen, messages, setMessages,
+    hasUnread, conversationId, setConversationId, resetConversation,
+  } = useChatPanel();
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
-  const [conversationId, setConversationId] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem(CONV_KEY) || "";
-  });
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const t = (pt: string, en: string) => (language === "en" ? en : pt);
@@ -104,7 +95,6 @@ export function ChatPanel() {
             const evt = JSON.parse(payload);
             if (evt.conversation_id && evt.conversation_id !== conversationId) {
               setConversationId(evt.conversation_id);
-              localStorage.setItem(CONV_KEY, evt.conversation_id);
             }
             if (evt.event === "message" || evt.event === "agent_message") {
               if (typeof evt.answer === "string") {
@@ -148,12 +138,6 @@ export function ChatPanel() {
     }
   };
 
-  const resetConversation = () => {
-    setConversationId("");
-    localStorage.removeItem(CONV_KEY);
-    setMessages([]);
-  };
-
   return (
     <>
       {!open && (
@@ -163,6 +147,9 @@ export function ChatPanel() {
           className="fixed bottom-20 right-5 md:bottom-5 md:right-5 z-40 h-14 w-14 rounded-full shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground"
         >
           <MessageCircle className="w-6 h-6" strokeWidth={1.8} />
+          {hasUnread && (
+            <span className="absolute top-1 right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-background" />
+          )}
         </Button>
       )}
 
@@ -223,6 +210,8 @@ export function ChatPanel() {
                   "max-w-[85%] rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed whitespace-pre-wrap break-words",
                   m.role === "user"
                     ? "bg-primary text-primary-foreground"
+                    : m.role === "system"
+                    ? "bg-amber-500/10 border border-amber-500/30 text-tx1"
                     : "bg-muted text-tx1",
                 )}
               >
