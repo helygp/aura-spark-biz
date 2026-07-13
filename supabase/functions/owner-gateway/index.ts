@@ -251,6 +251,70 @@ Deno.serve(async (req) => {
       return json({ ok: true, active, gateway: payload });
     }
 
+    if (action === "list_records") {
+      const entity = params?.entity;
+      if (!["clients", "appointments", "sales"].includes(entity)) {
+        return json({ error: "Invalid entity" }, 400);
+      }
+      const rawLimit = Number(params?.limit ?? 10);
+      const limit = Math.min(50, Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 10));
+      const order = params?.order === "asc" ? "asc" : "desc";
+      const ascending = order === "asc";
+
+      if (entity === "clients") {
+        const { data, error } = await admin
+          .from("clients")
+          .select("id, name, phone, created_at")
+          .eq("business_id", businessId)
+          .order("created_at", { ascending })
+          .limit(limit);
+        if (error) return json({ error: error.message }, 500);
+        return json({ records: data ?? [] });
+      }
+
+      if (entity === "appointments") {
+        let q = admin
+          .from("appointments")
+          .select(
+            "id, date, start_time, status, client:clients(name), service:services(name), professional:professionals(name)"
+          )
+          .eq("business_id", businessId);
+        const status = params?.status;
+        if (status) {
+          const allowed = ["pending", "confirmed", "completed", "cancelled"];
+          if (!allowed.includes(status)) {
+            return json({ error: "Invalid status" }, 400);
+          }
+          q = q.eq("status", status);
+        }
+        const { data, error } = await q
+          .order("date", { ascending })
+          .order("start_time", { ascending })
+          .limit(limit);
+        if (error) return json({ error: error.message }, 500);
+        const records = (data ?? []).map((r: any) => ({
+          id: r.id,
+          client_name: r.client?.name ?? null,
+          service_name: r.service?.name ?? null,
+          professional_name: r.professional?.name ?? null,
+          starts_at: `${r.date}T${r.start_time}`,
+          status: r.status,
+        }));
+        return json({ records });
+      }
+
+      if (entity === "sales") {
+        const { data, error } = await admin
+          .from("sales")
+          .select("id, total, created_at, client_id")
+          .eq("business_id", businessId)
+          .order("created_at", { ascending })
+          .limit(limit);
+        if (error) return json({ error: error.message }, 500);
+        return json({ records: data ?? [] });
+      }
+    }
+
     return json({ error: "Unknown action" }, 400);
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
