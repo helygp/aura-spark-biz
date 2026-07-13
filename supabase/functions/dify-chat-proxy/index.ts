@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
     // Find business owned by this user
     const { data: biz, error: bizErr } = await admin
       .from("businesses")
-      .select("id")
+      .select("id, name")
       .eq("owner_id", userId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -118,6 +118,7 @@ Deno.serve(async (req) => {
         inputs: {
           business_token: businessToken,
           business_id: biz.id,
+          business_name: biz.name ?? "",
         },
         query,
         response_mode: "streaming",
