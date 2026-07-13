@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
       if (entity === "sales") {
         const { data, error } = await admin
           .from("sales")
-          .select("id, total, created_at, appointment_id")
+          .select("id, total, created_at, client_id")
           .eq("business_id", businessId)
           .order("created_at", { ascending })
           .limit(limit);
