@@ -2,6 +2,7 @@ import { ReactNode, useState } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
 import { BottomNav } from "./BottomNav";
+import { ChatPanel } from "@/components/chat/ChatPanel";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { formatT, TranslationKey } from "@/lib/i18n";
 
@@ -69,6 +70,7 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
         </main>
       </div>
       <BottomNav />
+      <ChatPanel />
     </div>
   );
 }
