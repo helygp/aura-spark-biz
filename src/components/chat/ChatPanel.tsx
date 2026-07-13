@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { useChatPanel } from "@/contexts/ChatPanelContext";
+import { useChatPanel, type ChatMessage } from "@/contexts/ChatPanelContext";
 
 export function ChatPanel() {
   const { language } = useAppSettings();
